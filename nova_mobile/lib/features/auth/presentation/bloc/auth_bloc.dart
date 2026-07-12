@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../../../core/settings/settings_service.dart';
 
 // ─── Events ───────────────────────────────────────────────────────────────────
 abstract class AuthEvent {
@@ -61,8 +62,9 @@ class AuthRegisterSuccess extends AuthState {
 // ─── Bloc ─────────────────────────────────────────────────────────────────────
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _repo;
+  final SettingsService _settings;
 
-  AuthBloc(this._repo) : super(const AuthInitial()) {
+  AuthBloc(this._repo, this._settings) : super(const AuthInitial()) {
     on<AuthCheckRequested>(_onCheckRequested);
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthRegisterRequested>(_onRegisterRequested);
@@ -74,6 +76,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     final loggedIn = await _repo.isLoggedIn;
     if (loggedIn) {
       emit(const AuthAuthenticated());
+      await _settings.syncConsentState();
     } else {
       emit(const AuthUnauthenticated());
     }
@@ -92,6 +95,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       await _repo.login(event.email.trim(), event.password);
       emit(const AuthAuthenticated());
+      await _settings.syncConsentState();
     } catch (e) {
       emit(AuthError(_friendlyError(e, fallback: 'We couldn\'t log you in. Please double-check your email and password.')));
       emit(const AuthUnauthenticated());

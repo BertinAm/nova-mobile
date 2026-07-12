@@ -55,33 +55,38 @@ class _OcrViewState extends State<_OcrView> {
           title: 'Read Text',
           icon: Icons.document_scanner_rounded,
           semanticPageLabel:
-              'Read Text page. Point the camera at printed text and press Capture.',
-          body: Padding(
-            padding: const EdgeInsets.all(kPagePad),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: kGapM),
+              'Read Text page. Point the camera at printed text and double tap anywhere on the screen, or press the Capture button.',
+          body: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onDoubleTap: isBusy
+                ? null
+                : () => context.read<OcrBloc>().add(const TriggerOcr()),
+            child: Padding(
+              padding: const EdgeInsets.all(kPagePad),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: kGapM),
 
-                NovaInstructionCard(
-                  message: 'Point the camera at any printed text — a sign, document, or label — then press Capture.',
-                  icon: Icons.camera_alt_rounded,
-                  semanticLabel:
-                      'Instruction: Point camera at text and press Capture.',
-                ),
+                  NovaInstructionCard(
+                    message: 'Point the camera at any printed text — a sign, document, or label — then double tap the screen or press Capture.',
+                    icon: Icons.camera_alt_rounded,
+                    semanticLabel:
+                        'Instruction: Point camera at text and double tap the screen or press Capture.',
+                  ),
 
-                const SizedBox(height: kGapM),
+                  const SizedBox(height: kGapM),
 
-                // ── Primary action ────────────────────────────────────────────
-                NovaBigButton(
-                  label: 'Capture & Read',
-                  icon: Icons.document_scanner_rounded,
-                  enabled: !isBusy,
-                  loading: isBusy,
-                  semanticHint:
-                      'Takes a photo and reads any text aloud',
-                  onTap: () => context.read<OcrBloc>().add(const TriggerOcr()),
-                ),
+                  // ── Primary action ────────────────────────────────────────────
+                  NovaBigButton(
+                    label: 'Capture & Read',
+                    icon: Icons.document_scanner_rounded,
+                    enabled: !isBusy,
+                    loading: isBusy,
+                    semanticHint:
+                        'Double tap to take a photo and read text aloud',
+                    onTap: () => context.read<OcrBloc>().add(const TriggerOcr()),
+                  ),
 
                 const SizedBox(height: kGapS),
 
@@ -102,7 +107,8 @@ class _OcrViewState extends State<_OcrView> {
               ],
             ),
           ),
-        );
+        ),
+      );
       },
     );
   }

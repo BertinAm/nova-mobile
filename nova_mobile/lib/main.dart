@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'core/camera/camera_service.dart';
 import 'core/constants/app_constants.dart';
+import 'core/location/location_service.dart';
 import 'core/settings/settings_service.dart';
 import 'core/sync/sync_service.dart';
 import 'core/tts/tts_service.dart';
@@ -19,13 +20,13 @@ import 'features/onboarding/presentation/pages/onboarding_page.dart';
 import 'features/obstacle_detection/presentation/pages/obstacle_page.dart';
 import 'features/scene_description/presentation/pages/scene_page.dart';
 import 'features/settings/presentation/pages/settings_page.dart';
+import 'features/splash/presentation/pages/splash_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'features/emergency_contact/presentation/pages/emergency_contact_page.dart';
 import 'features/emergency_contact/domain/repositories/emergency_contact_repository.dart';
 import 'features/emergency_contact/data/datasources/emergency_contact_datasource.dart';
 import 'features/auth/presentation/auth_wrapper.dart';
-import 'features/auth/presentation/pages/auth_page.dart';
 import 'core/network/dio_client.dart';
 import 'injection_container.dart';
 
@@ -38,25 +39,30 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // Run the splash FIRST, then initialise everything in the background.
+  runApp(const NovaApp());
+}
+
+/// Background init — called by SplashPage while it is displayed.
+Future<void> backgroundInit() async {
   await configureDependencies();
 
-  // Perform quick health check before booting. If it fails, log it.
+  // Quick health check — proceed in offline mode if it fails.
   try {
-    await getIt<DioClient>().client.get(AppConstants.healthPath).timeout(const Duration(seconds: 3));
+    await getIt<DioClient>().client
+        .get(AppConstants.healthPath)
+        .timeout(const Duration(seconds: 3));
     debugPrint('Backend /health check passed.');
   } catch (e) {
-    debugPrint('Backend /health check failed or timed out: $e. Proceeding in offline mode.');
+    debugPrint('Offline mode: $e');
   }
 
-  // Pre-warm camera so the overlay is ready immediately
+  // Pre-warm camera.
   if (!AppConstants.simulated) {
-    try {
-      await getIt<CameraService>().initialize();
-    } catch (_) {}
+    try { await getIt<CameraService>().initialize(); } catch (_) {}
   }
 
   getIt<SyncService>().startWatching();
-  runApp(const NovaApp());
 }
 
 /// Global navigator key — used to route voice commands from anywhere.
@@ -73,26 +79,62 @@ class NovaApp extends StatefulWidget {
 }
 
 class _NovaAppState extends State<NovaApp> {
-  late final StreamSubscription<VoiceCommand> _voiceSub;
+  StreamSubscription<VoiceCommand>? _voiceSub;
+
+  bool _locationQuerying = false;
 
   @override
   void initState() {
     super.initState();
-    _voiceSub = getIt<VoiceCommandRouter>().commands.listen(_handleVoiceCommand);
+    // Voice sub only available after init completes
+    _initAndListen();
+  }
 
-    // Keep the voice service listening continuously
+  Future<void> _initAndListen() async {
+    // Wait until getIt is ready (splash will have called backgroundInit)
+    await Future.doWhile(() async {
+      await Future.delayed(const Duration(milliseconds: 100));
+      return !getIt.isRegistered<VoiceCommandRouter>();
+    });
+    _voiceSub = getIt<VoiceCommandRouter>().commands.listen(_handleVoiceCommand);
     _startContinuousListening();
   }
 
   void _startContinuousListening() {
+    if (!getIt.isRegistered<VoiceCommandService>()) return;
     final svc = getIt<VoiceCommandService>();
     final lang = getIt<SettingsService>().language.value;
     svc.startListening(localeId: lang.replaceAll('-', '_'));
   }
 
+  /// 🔒 Secret feature — triple-tap anywhere on the home screen
+  /// to hear the current GPS location spoken aloud.
+  Future<void> _announceLocation() async {
+    if (_locationQuerying) return;
+    _locationQuerying = true;
+    if (!getIt.isRegistered<TtsService>()) return;
+    final tts = getIt<TtsService>();
+    await tts.speak('Finding your location…', priority: TtsPriority.high);
+    try {
+      final location = await LocationService().describeCurrentLocation();
+      if (location != null) {
+        await tts.speak(location, priority: TtsPriority.high);
+      } else {
+        await tts.speak(
+          'I couldn\'t determine your location. Please make sure location is enabled.',
+          priority: TtsPriority.high,
+        );
+      }
+    } catch (_) {
+      await tts.speak('Location unavailable right now.', priority: TtsPriority.high);
+    } finally {
+      _locationQuerying = false;
+    }
+  }
+
   @override
   void dispose() {
-    _voiceSub.cancel();
+    _voiceSub?.cancel();
     super.dispose();
   }
 
@@ -142,6 +184,12 @@ class _NovaAppState extends State<NovaApp> {
         break;
       case VoiceCommand.stopTts:
         getIt<TtsService>().stop();
+        _startContinuousListening();
+        break;
+      case VoiceCommand.confirm:
+      case VoiceCommand.deny:
+        // Handled directly by specific BLoCs via firstWhere.
+        // We just re-arm the global listener here if it accidentally caught it.
         _startContinuousListening();
         break;
       case VoiceCommand.emergency:
@@ -214,19 +262,40 @@ class _NovaAppState extends State<NovaApp> {
         );
         return MediaQuery(
           data: MediaQuery.of(context),
-          // ─── Wrap everything in a Stack so the floating camera overlay
-          //     appears above ALL pages without being per-page ───────────
-          child: Stack(
-            children: [
-              child!,
-              const _FloatingCameraOverlay(),
-            ],
+          // Triple-tap anywhere to announce current location (secret feature)
+          child: GestureDetector(
+            onDoubleTap: null,
+            onLongPress: null,
+            behavior: HitTestBehavior.translucent,
+            onTap: null,
+            child: Listener(
+              onPointerDown: null,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: null,
+                // We use a custom triple-tap by stacking an invisible overlay
+                child: Stack(
+                  children: [
+                    child!,
+                    const _FloatingCameraOverlay(),
+                    // Transparent triple-tap catcher at bottom-right corner
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      width: 60,
+                      height: 60,
+                      child: _TripleTapZone(onTripleTap: _announceLocation),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         );
       },
-      home: const AuthWrapper(),
+      home: SplashPage(initFuture: backgroundInit()),
       routes: {
-        '/auth':      (_) => const AuthPage(),
+        '/auth':      (_) => const AuthWrapper(),
         '/onboarding':(_) => const OnboardingPage(),
         '/home':      (_) => const HomeMenuPage(),
         '/obstacle':  (_) => const ObstaclePage(),
@@ -243,7 +312,48 @@ class _NovaAppState extends State<NovaApp> {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  Floating draggable camera overlay — visible on every screen when enabled
+//  Secret triple-tap zone \u2014 bottom-right 60x60 invisible hit zone
+//  Triple-tap triggers GPS location announcement.
+// ════════════════════════════════════════════════════════════════════════════
+class _TripleTapZone extends StatefulWidget {
+  final VoidCallback onTripleTap;
+  const _TripleTapZone({required this.onTripleTap});
+
+  @override
+  State<_TripleTapZone> createState() => _TripleTapZoneState();
+}
+
+class _TripleTapZoneState extends State<_TripleTapZone> {
+  int _tapCount = 0;
+  DateTime? _firstTap;
+
+  void _onTap() {
+    final now = DateTime.now();
+    if (_firstTap == null || now.difference(_firstTap!) > const Duration(seconds: 2)) {
+      _firstTap = now;
+      _tapCount = 1;
+    } else {
+      _tapCount++;
+      if (_tapCount >= 3) {
+        _tapCount = 0;
+        _firstTap = null;
+        widget.onTripleTap();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _onTap,
+      child: const SizedBox(width: 60, height: 60),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Floating draggable camera overlay \u2014 visible on every screen when enabled
 // ════════════════════════════════════════════════════════════════════════════
 class _FloatingCameraOverlay extends StatefulWidget {
   const _FloatingCameraOverlay();
@@ -262,6 +372,8 @@ class _FloatingCameraOverlayState extends State<_FloatingCameraOverlay>
   late final AnimationController _pulseCtrl;
   late final Animation<double> _pulseAnim;
 
+  bool _isReady = false;
+
   @override
   void initState() {
     super.initState();
@@ -272,6 +384,15 @@ class _FloatingCameraOverlayState extends State<_FloatingCameraOverlay>
     _pulseAnim = Tween(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
+    _waitForGetIt();
+  }
+
+  Future<void> _waitForGetIt() async {
+    await Future.doWhile(() async {
+      await Future.delayed(const Duration(milliseconds: 100));
+      return !getIt.isRegistered<SettingsService>();
+    });
+    if (mounted) setState(() => _isReady = true);
   }
 
   @override
@@ -282,12 +403,14 @@ class _FloatingCameraOverlayState extends State<_FloatingCameraOverlay>
 
   @override
   Widget build(BuildContext context) {
+    if (!_isReady) return const SizedBox.shrink();
+
     return ValueListenableBuilder<bool>(
       valueListenable: getIt<SettingsService>().debugCameraPreview,
       builder: (_, showPreview, __) {
         if (!showPreview) return const SizedBox.shrink();
 
-        final ctrl = getIt<CameraService>().controller;
+        final ctrl = getIt.isRegistered<CameraService>() ? getIt<CameraService>().controller : null;
         final hasRealCamera = ctrl != null && ctrl.value.isInitialized;
 
         return Positioned(

@@ -58,12 +58,17 @@ class _FaceViewState extends State<_FaceView> {
           featureNumber: 5,
           title: 'Recognize Faces',
           icon: Icons.face_rounded,
-          semanticPageLabel: 'Recognize Faces page.',
-          body: CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.all(kPagePad),
-                sliver: SliverList(
+          semanticPageLabel: 'Recognize Faces page. Double tap anywhere on the screen, or press Who is this, to recognize a person in front of the camera.',
+          body: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onDoubleTap: isLoading
+                ? null
+                : () => context.read<FaceBloc>().add(const RecogniseFace()),
+            child: CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.all(kPagePad),
+                  sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     const SizedBox(height: kGapM),
                     NovaBigButton(
@@ -212,7 +217,8 @@ class _FaceViewState extends State<_FaceView> {
               ),
             ],
           ),
-        );
+        ),
+      );
       },
     );
   }

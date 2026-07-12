@@ -22,6 +22,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late double _rate;
   late String _language;
   late bool _debugCamera;
+  late bool _dataCollection;
 
   @override
   void initState() {
@@ -31,6 +32,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _rate        = _settings.speechRate.value;
     _language    = _settings.language.value;
     _debugCamera = _settings.debugCameraPreview.value;
+    _dataCollection = _settings.dataCollectionConsent.value;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _tts.speak('Settings page. Swipe up and down to explore your options.', priority: TtsPriority.normal);
@@ -166,6 +168,64 @@ class _SettingsPageState extends State<SettingsPage> {
             onTap: () {
               Navigator.pushNamed(context, '/emergency');
             },
+          ),
+
+          const NovaDivider(),
+
+          // ── Privacy & Data ──────────────────────────────────────────────────
+          const NovaSectionHeader('Privacy & Data'),
+
+          MergeSemantics(
+            child: Semantics(
+              label: 'Share uncertain detections toggle',
+              value: _dataCollection ? 'enabled' : 'disabled',
+              hint: 'Double tap to toggle. Shares errors or uncertain images to help improve NOVA. Faces are blurred automatically.',
+              toggled: _dataCollection,
+              child: GestureDetector(
+                onTap: () async {
+                  final val = !_dataCollection;
+                  setState(() => _dataCollection = val);
+                  await _settings.setDataCollectionConsent(val);
+                  await _tts.speak(
+                      val ? 'Data sharing turned on. Thanks for helping improve NOVA.' : 'Data sharing turned off.',
+                      priority: TtsPriority.normal);
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(kGapS),
+                  decoration: BoxDecoration(
+                    color: kNovaCard,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _dataCollection ? kNovaPrimary.withValues(alpha: 0.4) : kNovaPrimary.withValues(alpha: 0.1),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.privacy_tip_outlined, color: _dataCollection ? kNovaPrimary : kNovaSubtext, size: 26),
+                      const SizedBox(width: kGapS),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Share uncertain detections',
+                                style: TextStyle(color: _dataCollection ? kNovaOnSurface : kNovaSubtext, fontSize: 16, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 4),
+                            Text('Help improve NOVA. Only low-confidence or error detections are shared. Faces are always blurred locally before upload.', 
+                                style: TextStyle(color: kNovaSubtext, fontSize: 13, height: 1.3)),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _dataCollection,
+                        onChanged: null, // handled by GestureDetector above
+                        activeColor: kNovaPrimary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
 
           const NovaDivider(),

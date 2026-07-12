@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/camera/camera_service.dart';
 import 'core/constants/app_constants.dart';
 import 'core/database/app_database.dart';
+import 'core/data_collection/data_collection_service.dart';
 import 'core/haptics/haptic_service.dart';
 import 'core/model_update/model_update_service.dart';
 import 'core/network/connectivity_service.dart';
@@ -12,6 +13,7 @@ import 'core/network/dio_client.dart';
 import 'core/settings/settings_service.dart';
 import 'core/sync/sync_service.dart';
 import 'core/tts/tts_service.dart';
+import 'core/location/location_service.dart';
 import 'core/voice/voice_command_service.dart';
 import 'features/auth/data/datasources/auth_remote_datasource.dart';
 import 'features/auth/domain/repositories/auth_repository.dart';
@@ -64,6 +66,7 @@ Future<void> configureDependencies() async {
   final prefs = await SharedPreferences.getInstance();
   final settings = SettingsService(prefs);
   getIt.registerSingleton<SettingsService>(settings);
+  getIt.registerLazySingleton(() => LocationService());
 
   final tts = TtsService();
   await tts.init(settings.language.value);
@@ -78,12 +81,16 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton(() => SyncService(getIt(), getIt(), getIt()));
   getIt.registerLazySingleton(() => ModelUpdateService(getIt(), getIt(), getIt()));
 
+  final dataCollection = DataCollectionService(getIt(), getIt());
+  await dataCollection.init();
+  getIt.registerSingleton<DataCollectionService>(dataCollection);
+
   getIt.registerFactory(() => HomeBloc(getIt(), getIt(), getIt(), getIt()));
 
   // Auth feature
   getIt.registerLazySingleton(() => AuthRemoteDatasource(getIt<DioClient>().client, getIt()));
   getIt.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(getIt()));
-  getIt.registerFactory(() => AuthBloc(getIt()));
+  getIt.registerFactory(() => AuthBloc(getIt(), getIt()));
 
   // Emergency Contact feature
   getIt.registerLazySingleton(() => EmergencyContactDatasource(getIt<DioClient>().client));
@@ -96,7 +103,7 @@ Future<void> configureDependencies() async {
   getIt.registerSingleton<TfliteObstacleDatasource>(obstacleDs);
   getIt.registerLazySingleton<ObstacleRepository>(() => ObstacleRepositoryImpl(getIt()));
   getIt.registerLazySingleton(() => DetectObstaclesUseCase(getIt()));
-  getIt.registerFactory(() => ObstacleBloc(getIt(), getIt(), getIt(), getIt(), getIt()));
+  getIt.registerFactory(() => ObstacleBloc(getIt(), getIt(), getIt(), getIt(), getIt(), getIt(), getIt(), getIt()));
 
   // MOD-02 OCR.
   getIt.registerLazySingleton(() => MlKitOcrDatasource());
@@ -116,10 +123,10 @@ Future<void> configureDependencies() async {
   getIt.registerSingleton<TfliteCurrencyDatasource>(currencyDs);
   getIt.registerLazySingleton<CurrencyRepository>(() => CurrencyRepositoryImpl(getIt()));
   getIt.registerLazySingleton(() => ClassifyCurrencyUseCase(getIt()));
-  getIt.registerFactory(() => CurrencyBloc(getIt(), getIt(), getIt(), getIt()));
+  getIt.registerFactory(() => CurrencyBloc(getIt(), getIt(), getIt(), getIt(), getIt(), getIt(), getIt()));
 
   // MOD-05 face recognition.
-  getIt.registerLazySingleton(() => FaceRecognitionDatasource(getIt(), getIt<DioClient>().client));
+  getIt.registerLazySingleton(() => FaceRecognitionDatasource(getIt()));
   getIt.registerLazySingleton<FaceRepository>(() => FaceRepositoryImpl(getIt()));
   getIt.registerLazySingleton(() => GetContactsUseCase(getIt()));
   getIt.registerLazySingleton(() => EnrollFaceUseCase(getIt()));

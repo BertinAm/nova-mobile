@@ -8,6 +8,10 @@ import '../../../../core/tts/tts_service.dart';
 import '../../domain/entities/currency_result.dart';
 import '../../domain/usecases/classify_currency_usecase.dart';
 
+import '../../../../core/settings/settings_service.dart';
+import '../../../../core/data_collection/data_collection_service.dart';
+import '../../../../core/voice/voice_command_service.dart';
+
 abstract class CurrencyEvent extends Equatable {
   const CurrencyEvent();
   @override
@@ -59,9 +63,19 @@ class CurrencyBloc extends Bloc<CurrencyEvent, CurrencyState> {
   final CameraService _camera;
   final TtsService _tts;
   final AppDatabase _db;
+  final SettingsService _settings;
+  final DataCollectionService _dataCollection;
+  final VoiceCommandRouter _voiceRouter;
 
-  CurrencyBloc(this._classifyCurrency, this._camera, this._tts, this._db)
-      : super(const CurrencyIdle()) {
+  CurrencyBloc(
+    this._classifyCurrency,
+    this._camera,
+    this._tts,
+    this._db,
+    this._settings,
+    this._dataCollection,
+    this._voiceRouter,
+  ) : super(const CurrencyIdle()) {
     on<IdentifyCurrency>(_onIdentify);
   }
 
@@ -73,6 +87,11 @@ class CurrencyBloc extends Bloc<CurrencyEvent, CurrencyState> {
     await _tts.speak('Let me check that for you.', priority: TtsPriority.high);
 
     final image = await _camera.captureStill();
+    if (image == null) {
+      emit(const CurrencyError('Failed to capture image.'));
+      return;
+    }
+    
     final result = await _classifyCurrency(image);
     await result.fold(
       (failure) async {
@@ -98,6 +117,30 @@ class CurrencyBloc extends Bloc<CurrencyEvent, CurrencyState> {
             outcome: 'low_confidence',
             confidenceScore: currency.confidence,
           );
+
+          if (_settings.dataCollectionConsent.value && currency.confidence < 0.5) {
+            await Future.delayed(const Duration(seconds: 4));
+            await _tts.speak('NOVA wasn\'t sure what this was; share this to help improve it?', priority: TtsPriority.high);
+            try {
+              final command = await _voiceRouter.commands.firstWhere(
+                (c) => c == VoiceCommand.confirm || c == VoiceCommand.deny,
+              ).timeout(const Duration(seconds: 6));
+
+              if (command == VoiceCommand.confirm) {
+                await _tts.speak('Sharing image. Thank you.', priority: TtsPriority.high);
+                await _dataCollection.uploadHardCase(
+                  imageFile: image,
+                  moduleId: ModuleIds.currency,
+                  outcome: 'low_confidence',
+                  confidenceScore: currency.confidence,
+                );
+              } else {
+                await _tts.speak('Okay, ignored.', priority: TtsPriority.normal);
+              }
+            } catch (_) {
+              // Timeout
+            }
+          }
           return;
         }
 

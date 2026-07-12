@@ -55,37 +55,42 @@ class _SceneViewState extends State<_SceneView> {
           title: 'Describe Scene',
           icon: Icons.image_search_rounded,
           semanticPageLabel:
-              'Describe scene page. Point camera at a scene and press Describe.',
-          body: Padding(
-            padding: const EdgeInsets.all(kPagePad),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: kGapM),
+              'Describe scene page. Point camera at a scene and double tap anywhere on the screen, or press Describe Scene.',
+          body: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onDoubleTap: isBusy
+                ? null
+                : () => context.read<SceneBloc>().add(const RequestSceneDescription()),
+            child: Padding(
+              padding: const EdgeInsets.all(kPagePad),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: kGapM),
 
-                // ── Network requirement notice ─────────────────────────────────
-                NovaInstructionCard(
-                  message:
-                      'Requires internet. Point the camera at your surroundings and press Describe Scene.',
-                  icon: Icons.wifi_rounded,
-                  semanticLabel:
-                      'This feature requires an internet connection. Point camera at a scene and press Describe Scene.',
-                ),
+                  // ── Network requirement notice ─────────────────────────────────
+                  NovaInstructionCard(
+                    message:
+                        'Requires internet. Point the camera at your surroundings and double tap the screen or press Describe.',
+                    icon: Icons.wifi_rounded,
+                    semanticLabel:
+                        'This feature requires an internet connection. Point camera at a scene and double tap the screen or press Describe.',
+                  ),
 
-                const SizedBox(height: kGapM),
+                  const SizedBox(height: kGapM),
 
-                // ── Primary action ────────────────────────────────────────────
-                NovaBigButton(
-                  label: 'Describe Scene',
-                  icon: Icons.image_search_rounded,
-                  enabled: !isBusy,
-                  loading: isBusy,
-                  semanticHint:
-                      'Takes a photo and sends it to the cloud for a spoken description. Requires internet.',
-                  onTap: () => context
-                      .read<SceneBloc>()
-                      .add(const RequestSceneDescription()),
-                ),
+                  // ── Primary action ────────────────────────────────────────────
+                  NovaBigButton(
+                    label: 'Describe Scene',
+                    icon: Icons.image_search_rounded,
+                    enabled: !isBusy,
+                    loading: isBusy,
+                    semanticHint:
+                        'Double tap to take a photo and get a spoken description. Requires internet.',
+                    onTap: () => context
+                        .read<SceneBloc>()
+                        .add(const RequestSceneDescription()),
+                  ),
 
                 const SizedBox(height: kGapM),
 
@@ -94,7 +99,8 @@ class _SceneViewState extends State<_SceneView> {
               ],
             ),
           ),
-        );
+        ),
+      );
       },
     );
   }

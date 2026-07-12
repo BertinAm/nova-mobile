@@ -53,16 +53,22 @@ class _CurrencyViewState extends State<_CurrencyView> {
           title: 'Identify Money',
           icon: Icons.payments_rounded,
           semanticPageLabel:
-              'Identify Money page. Hold a CFA franc banknote flat in front of the camera and press Identify.',
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── Content area (result or idle) ─────────────────────────────
-              Expanded(child: _buildContent(state)),
+              'Identify Money page. Hold a CFA franc banknote flat in front of the camera and double tap anywhere on the screen, or press the Identify button.',
+          body: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onDoubleTap: isBusy
+                ? null
+                : () => context.read<CurrencyBloc>().add(const IdentifyCurrency()),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Content area (result or idle) ─────────────────────────────
+                Expanded(child: _buildContent(state)),
 
-              // ── Fixed bottom action panel ─────────────────────────────────
-              _ActionPanel(isBusy: isBusy),
-            ],
+                // ── Fixed bottom action panel ─────────────────────────────────
+                _ActionPanel(isBusy: isBusy),
+              ],
+            ),
           ),
         );
       },

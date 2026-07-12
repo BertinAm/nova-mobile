@@ -67,6 +67,14 @@ class VoiceCommandService {
     MapEntry('qui est',       VoiceCommand.option5),
     MapEntry('settings',      VoiceCommand.option6),
     MapEntry('paramètres',    VoiceCommand.option6),
+    // ── Confirmation ─────────────────────────────────────────────────────
+    MapEntry('yes',           VoiceCommand.confirm),
+    MapEntry('yeah',          VoiceCommand.confirm),
+    MapEntry('oui',           VoiceCommand.confirm),
+    MapEntry('ouais',         VoiceCommand.confirm),
+    MapEntry('no',            VoiceCommand.deny),
+    MapEntry('nope',          VoiceCommand.deny),
+    MapEntry('non',           VoiceCommand.deny),
   ];
 
   Future<void> init(String locale) async {
@@ -156,4 +164,7 @@ enum VoiceCommand {
   stopTts,
   // Emergency
   emergency,
+  // Confirmation
+  confirm,
+  deny,
 }
