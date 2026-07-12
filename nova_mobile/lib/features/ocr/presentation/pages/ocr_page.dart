@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/design/nova_design_system.dart';
 import '../../../../injection_container.dart';
 import '../../../../main.dart' show globalStopCurrentOption;
 import '../bloc/ocr_bloc.dart';
@@ -28,18 +29,12 @@ class _OcrViewState extends State<_OcrView> {
   @override
   void initState() {
     super.initState();
-
-    // Register "stop option" hook
     globalStopCurrentOption = () {
       if (mounted) context.read<OcrBloc>().add(const CancelOcrReading());
     };
-
-    // Auto-trigger OCR if opened via voice
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final autoStart = ModalRoute.of(context)?.settings.arguments == true;
-      if (autoStart) {
-        context.read<OcrBloc>().add(const TriggerOcr());
-      }
+      if (autoStart) context.read<OcrBloc>().add(const TriggerOcr());
     });
   }
 
@@ -51,154 +46,138 @@ class _OcrViewState extends State<_OcrView> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Option 2 — Read Text')),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: BlocBuilder<OcrBloc, OcrState>(
-            builder: (context, state) {
-              final isBusy = state is OcrCapturing || state is OcrProcessing;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Semantics(
-                    label: 'Point your camera at text and press Capture.',
-                    child: Text(
-                      'Point camera at printed text.',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+    return BlocBuilder<OcrBloc, OcrState>(
+      builder: (context, state) {
+        final isBusy = state is OcrCapturing || state is OcrProcessing;
 
-                  Row(children: [
-                    Expanded(
-                      child: Semantics(
-                        button: true, enabled: !isBusy,
-                        label: 'Capture and read text',
-                        child: ElevatedButton.icon(
-                          onPressed: isBusy ? null
-                              : () => context.read<OcrBloc>().add(const TriggerOcr()),
-                          icon: const Icon(Icons.document_scanner_rounded),
-                          label: const Text('Capture & Read'),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Semantics(
-                        button: true,
-                        label: 'Stop reading',
-                        child: OutlinedButton.icon(
-                          onPressed: () => context.read<OcrBloc>().add(const CancelOcrReading()),
-                          icon: const Icon(Icons.stop_circle_rounded),
-                          label: const Text('Stop'),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: cs.error),
-                            foregroundColor: cs.error,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ]),
+        return NovaScaffold(
+          featureNumber: 2,
+          title: 'Read Text',
+          icon: Icons.document_scanner_rounded,
+          semanticPageLabel:
+              'Read Text page. Point the camera at printed text and press Capture.',
+          body: Padding(
+            padding: const EdgeInsets.all(kPagePad),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: kGapM),
 
-                  const SizedBox(height: 24),
-                  Expanded(child: _stateContent(context, state)),
-                ],
-              );
-            },
+                NovaInstructionCard(
+                  message: 'Point the camera at any printed text — a sign, document, or label — then press Capture.',
+                  icon: Icons.camera_alt_rounded,
+                  semanticLabel:
+                      'Instruction: Point camera at text and press Capture.',
+                ),
+
+                const SizedBox(height: kGapM),
+
+                // ── Primary action ────────────────────────────────────────────
+                NovaBigButton(
+                  label: 'Capture & Read',
+                  icon: Icons.document_scanner_rounded,
+                  enabled: !isBusy,
+                  loading: isBusy,
+                  semanticHint:
+                      'Takes a photo and reads any text aloud',
+                  onTap: () => context.read<OcrBloc>().add(const TriggerOcr()),
+                ),
+
+                const SizedBox(height: kGapS),
+
+                // ── Stop reading ──────────────────────────────────────────────
+                NovaOutlineButton(
+                  label: 'Stop Reading',
+                  icon: Icons.stop_circle_rounded,
+                  borderColor: kNovaDanger,
+                  foregroundColor: kNovaDanger,
+                  semanticHint: 'Stops the current text-to-speech reading',
+                  onTap: () => context.read<OcrBloc>().add(const CancelOcrReading()),
+                ),
+
+                const SizedBox(height: kGapM),
+
+                // ── Content area ──────────────────────────────────────────────
+                Expanded(child: _buildContent(state)),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _stateContent(BuildContext context, OcrState state) {
+  Widget _buildContent(OcrState state) {
     if (state is OcrCapturing) {
-      return Semantics(
-        liveRegion: true,
-        label: 'Capturing image. Please hold the camera steady.',
-        child: const Center(child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 12),
-            Text('Capturing…'),
-          ],
-        )),
-      );
+      return const NovaLoadingState(
+          message: 'Capturing image.\nPlease hold the camera steady.');
     }
     if (state is OcrProcessing) {
-      return Semantics(
-        liveRegion: true,
-        label: 'Processing image. Please wait.',
-        child: const Center(child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 12),
-            Text('Reading text…'),
-          ],
-        )),
-      );
+      return const NovaLoadingState(message: 'Reading text from the image…');
     }
     if (state is OcrNoText) {
-      return Semantics(
-        liveRegion: true,
-        label: 'No text detected. Try moving the camera closer and press Capture again.',
-        child: Center(child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.text_fields_outlined, size: 48,
-                color: Theme.of(context).colorScheme.secondary),
-            const SizedBox(height: 12),
-            Text('No text detected.\nTry moving closer.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge),
-          ],
-        )),
+      return const NovaInfoState(
+        icon: Icons.text_fields_rounded,
+        message: 'No text detected.\nTry moving the camera closer and ensure good lighting.',
+        iconColor: kNovaSecondary,
+        semanticLabel:
+            'No text detected. Move closer and try again.',
       );
     }
     if (state is OcrError) {
-      return Semantics(
-        liveRegion: true,
-        label: 'Error: ${state.message}',
-        child: Center(child: Text(state.message,
-            style: TextStyle(color: Theme.of(context).colorScheme.error))),
+      return NovaInfoState(
+        icon: Icons.error_outline_rounded,
+        message: state.message,
+        iconColor: kNovaDanger,
+        semanticLabel: 'Error: ${state.message}',
       );
     }
     if (state is OcrReading) {
       return Semantics(
-        label: 'Recognised text — ${state.text}',
+        liveRegion: true,
+        label: 'Recognised text: ${state.text}',
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Recognised text:',
-                  style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 8),
-              SelectableText(state.text,
-                  style: Theme.of(context).textTheme.titleMedium),
+              const Text(
+                'RECOGNISED TEXT',
+                style: TextStyle(
+                  color: kNovaPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.6,
+                ),
+              ),
+              const SizedBox(height: kGapS),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(kGapM),
+                decoration: BoxDecoration(
+                  color: kNovaCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                      color: kNovaPrimary.withValues(alpha: 0.25), width: 1.5),
+                ),
+                child: SelectableText(
+                  state.text,
+                  style: const TextStyle(
+                    color: kNovaOnSurface,
+                    fontSize: 19,
+                    height: 1.65,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       );
     }
     // Idle
-    return Semantics(
-      label: 'Ready to capture. Press Capture and Read, or say Option 2 to auto-capture.',
-      child: Center(child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.document_scanner_outlined, size: 56,
-              color: Theme.of(context).colorScheme.primary),
-          const SizedBox(height: 12),
-          Text('Press "Capture & Read" or say "Option 2".',
-            style: Theme.of(context).textTheme.bodyLarge,
-            textAlign: TextAlign.center),
-        ],
-      )),
+    return const NovaInfoState(
+      icon: Icons.document_scanner_outlined,
+      message: 'Press "Capture & Read" or say\n"read text" to begin.',
+      semanticLabel: 'Ready. Press Capture and Read to begin.',
     );
   }
 }

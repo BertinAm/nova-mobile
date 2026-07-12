@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 import 'core/camera/camera_service.dart';
@@ -18,10 +19,19 @@ import 'features/onboarding/presentation/pages/onboarding_page.dart';
 import 'features/obstacle_detection/presentation/pages/obstacle_page.dart';
 import 'features/scene_description/presentation/pages/scene_page.dart';
 import 'features/settings/presentation/pages/settings_page.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'features/emergency_contact/presentation/pages/emergency_contact_page.dart';
+import 'features/emergency_contact/domain/repositories/emergency_contact_repository.dart';
+import 'features/emergency_contact/data/datasources/emergency_contact_datasource.dart';
+import 'features/auth/presentation/auth_wrapper.dart';
+import 'features/auth/presentation/pages/auth_page.dart';
+import 'core/network/dio_client.dart';
 import 'injection_container.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SemanticsBinding.instance.ensureSemantics();
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -29,6 +39,14 @@ Future<void> main() async {
   ]);
 
   await configureDependencies();
+
+  // Perform quick health check before booting. If it fails, log it.
+  try {
+    await getIt<DioClient>().client.get(AppConstants.healthPath).timeout(const Duration(seconds: 3));
+    debugPrint('Backend /health check passed.');
+  } catch (e) {
+    debugPrint('Backend /health check failed or timed out: $e. Proceeding in offline mode.');
+  }
 
   // Pre-warm camera so the overlay is ready immediately
   if (!AppConstants.simulated) {
@@ -114,12 +132,12 @@ class _NovaAppState extends State<NovaApp> {
 
       case VoiceCommand.slowTts:
         getIt<TtsService>().setSpeechRate(0.7);
-        getIt<TtsService>().speak('Speed slowed.', priority: TtsPriority.normal);
+        getIt<TtsService>().speak('Okay, I\'ll speak slower now.', priority: TtsPriority.normal);
         _startContinuousListening();
         break;
       case VoiceCommand.speedUpTts:
         getIt<TtsService>().setSpeechRate(1.4);
-        getIt<TtsService>().speak('Speed increased.', priority: TtsPriority.normal);
+        getIt<TtsService>().speak('Alright, speaking faster now.', priority: TtsPriority.normal);
         _startContinuousListening();
         break;
       case VoiceCommand.stopTts:
@@ -128,11 +146,54 @@ class _NovaAppState extends State<NovaApp> {
         break;
       case VoiceCommand.emergency:
         getIt<TtsService>().speak(
-          'Emergency! Calling for help. Please wait.',
+          'Emergency activated. Hold on.',
           priority: TtsPriority.critical,
           interrupt: true,
         );
-        _startContinuousListening();
+        getIt<EmergencyContactRepository>().getContact().then((EmergencyContact? contact) async {
+          if (contact != null && contact.phoneNumber.isNotEmpty) {
+            final name = contact.contactName;
+            getIt<TtsService>().speak(
+              'Calling $name now. Stay calm.',
+              priority: TtsPriority.critical,
+              interrupt: true,
+            );
+            
+            final uri = Uri.parse('tel:${contact.phoneNumber}');
+            try {
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri);
+              } else {
+                getIt<TtsService>().speak(
+                  'I wasn\'t able to open the phone dialer. '
+                  'Please ask someone nearby to call $name at ${contact.phoneNumber}.',
+                  priority: TtsPriority.critical,
+                );
+              }
+            } catch (_) {
+              getIt<TtsService>().speak(
+                'Something went wrong opening the dialer. '
+                'Please ask someone to call $name at ${contact.phoneNumber}.',
+                priority: TtsPriority.critical,
+              );
+            }
+          } else {
+            getIt<TtsService>().speak(
+              'You don\'t have an emergency contact set up yet. '
+              'Go to Settings, then tap Manage Emergency Contact to add one.',
+              priority: TtsPriority.critical,
+              interrupt: true,
+            );
+          }
+        }).catchError((_) {
+          getIt<TtsService>().speak(
+            'I couldn\'t look up your emergency contact right now. '
+            'Please ask someone nearby for help.',
+            priority: TtsPriority.critical,
+            interrupt: true,
+          );
+        });
+        Future.delayed(const Duration(seconds: 2), _startContinuousListening);
         break;
     }
   }
@@ -163,8 +224,10 @@ class _NovaAppState extends State<NovaApp> {
           ),
         );
       },
-      home: const OnboardingPage(),
+      home: const AuthWrapper(),
       routes: {
+        '/auth':      (_) => const AuthPage(),
+        '/onboarding':(_) => const OnboardingPage(),
         '/home':      (_) => const HomeMenuPage(),
         '/obstacle':  (_) => const ObstaclePage(),
         '/ocr':       (_) => const OcrPage(),
@@ -172,6 +235,7 @@ class _NovaAppState extends State<NovaApp> {
         '/currency':  (_) => const CurrencyPage(),
         '/faces':     (_) => const FaceRecognitionPage(),
         '/settings':  (_) => const SettingsPage(),
+        '/emergency': (_) => const EmergencyContactPage(),
         '/enrolment': (_) => const FaceEnrolmentPage(),
       },
     );
@@ -354,86 +418,173 @@ class _CameraPreviewWidget extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  Theme
+//  Theme — aligned with nova_design_system.dart constants
 // ════════════════════════════════════════════════════════════════════════════
 ThemeData _buildTheme() {
-  const seedColour = Color(0xFF1A5276);
+  // Exact token values mirrored from nova_design_system.dart
+  const kPrimary   = Color(0xFF4FC3F7);
+  const kSecondary = Color(0xFFFFCC02);
+  const kDanger    = Color(0xFFFF5252);
+  const kCard      = Color(0xFF1C2333);
+  const kOnSurface = Color(0xFFF0F4F8);
 
   final cs = ColorScheme.fromSeed(
-    seedColor: seedColour,
+    seedColor: kPrimary,
     brightness: Brightness.dark,
-    primary: const Color(0xFF4FC3F7),
+    primary: kPrimary,
     onPrimary: Colors.black,
-    secondary: const Color(0xFFFFCC02),
+    secondary: kSecondary,
     onSecondary: Colors.black,
-    error: const Color(0xFFFF5252),
-    surface: const Color(0xFF0D1117),
-    onSurface: const Color(0xFFF0F4F8),
-    surfaceContainerHighest: const Color(0xFF1C2333),
+    error: kDanger,
+    surface: Colors.black,       // pure black scaffold ← BVI requirement ≥7:1
+    onSurface: kOnSurface,
+    surfaceContainerHighest: kCard,
   );
 
   return ThemeData(
     colorScheme: cs,
     useMaterial3: true,
-    scaffoldBackgroundColor: cs.surface,
+    scaffoldBackgroundColor: Colors.black,
+
+    // ── Typography ──────────────────────────────────────────────────────────
     textTheme: const TextTheme(
-      displayLarge:  TextStyle(fontSize: 48, fontWeight: FontWeight.bold, letterSpacing: -0.5),
-      displayMedium: TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
-      headlineLarge: TextStyle(fontSize: 30, fontWeight: FontWeight.w700),
-      headlineMedium:TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-      titleLarge:    TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-      titleMedium:   TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-      bodyLarge:     TextStyle(fontSize: 18, height: 1.5),
-      bodyMedium:    TextStyle(fontSize: 16, height: 1.5),
-      labelLarge:    TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-    ).apply(bodyColor: cs.onSurface, displayColor: cs.onSurface),
+      displayLarge:   TextStyle(fontSize: 48, fontWeight: FontWeight.bold,  letterSpacing: -0.5, color: kOnSurface),
+      displayMedium:  TextStyle(fontSize: 36, fontWeight: FontWeight.bold,  color: kOnSurface),
+      headlineLarge:  TextStyle(fontSize: 30, fontWeight: FontWeight.w700,  color: kOnSurface),
+      headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.w700,  color: kOnSurface),
+      titleLarge:     TextStyle(fontSize: 20, fontWeight: FontWeight.w600,  color: kOnSurface),
+      titleMedium:    TextStyle(fontSize: 18, fontWeight: FontWeight.w500,  color: kOnSurface),
+      bodyLarge:      TextStyle(fontSize: 18, height: 1.55,                 color: kOnSurface),
+      bodyMedium:     TextStyle(fontSize: 16, height: 1.55,                 color: kOnSurface),
+      labelLarge:     TextStyle(fontSize: 16, fontWeight: FontWeight.w600,  color: kOnSurface),
+      bodySmall:      TextStyle(fontSize: 13, height: 1.4,                  color: Color(0xFFB0BEC5)),
+    ),
+
+    // ── ElevatedButton ──────────────────────────────────────────────────────
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        minimumSize: const Size.fromHeight(60),
-        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        elevation: 2,
+        minimumSize: const Size.fromHeight(72),   // matches kBigButtonHeight
+        backgroundColor: kPrimary,
+        foregroundColor: Colors.black,
+        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 0,
       ),
     ),
+
+    // ── OutlinedButton ──────────────────────────────────────────────────────
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(56),
-        textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        minimumSize: const Size.fromHeight(72),
+        foregroundColor: kPrimary,
+        side: const BorderSide(color: kPrimary, width: 2),
+        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     ),
+
+    // ── FilledButton ────────────────────────────────────────────────────────
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        minimumSize: const Size.fromHeight(60),
-        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        minimumSize: const Size.fromHeight(72),
+        backgroundColor: kPrimary,
+        foregroundColor: Colors.black,
+        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     ),
+
+    // ── AppBar ──────────────────────────────────────────────────────────────
     appBarTheme: AppBarTheme(
-      backgroundColor: cs.surfaceContainerHighest,
-      foregroundColor: cs.onSurface,
+      backgroundColor: kCard,
+      foregroundColor: kOnSurface,
       elevation: 0,
       centerTitle: false,
-      titleTextStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: cs.onSurface),
+      surfaceTintColor: Colors.transparent,
+      titleTextStyle: const TextStyle(
+          fontSize: 22, fontWeight: FontWeight.bold, color: kOnSurface),
     ),
+
+    // ── Card ────────────────────────────────────────────────────────────────
     cardTheme: CardTheme(
-      elevation: 1,
-      color: cs.surfaceContainerHighest,
+      elevation: 0,
+      color: kCard,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.symmetric(vertical: 6),
     ),
-    sliderTheme: const SliderThemeData(
-      thumbShape: RoundSliderThumbShape(enabledThumbRadius: 14),
+
+    // ── Slider ──────────────────────────────────────────────────────────────
+    sliderTheme: SliderThemeData(
+      activeTrackColor: kPrimary,
+      inactiveTrackColor: kCard,
+      thumbColor: kPrimary,
+      overlayColor: kPrimary.withValues(alpha: 0.2),
+      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14),
       trackHeight: 6,
     ),
+
+    // ── Switch ──────────────────────────────────────────────────────────────
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith(
-        (s) => s.contains(WidgetState.selected) ? cs.primary : cs.outline,
+        (s) => s.contains(WidgetState.selected) ? kPrimary : const Color(0xFF546E7A),
+      ),
+      trackColor: WidgetStateProperty.resolveWith(
+        (s) => s.contains(WidgetState.selected)
+            ? kPrimary.withValues(alpha: 0.4)
+            : kCard,
       ),
     ),
-    dividerTheme: DividerThemeData(
-      color: cs.outline.withValues(alpha: 0.3),
+
+    // ── Divider ─────────────────────────────────────────────────────────────
+    dividerTheme: const DividerThemeData(
+      color: Color(0x22FFFFFF),
       thickness: 1,
+    ),
+
+    // ── InputDecoration ─────────────────────────────────────────────────────
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: kCard,
+      labelStyle: const TextStyle(color: kPrimary),
+      border: OutlineInputBorder(
+        borderSide: BorderSide(color: kPrimary.withValues(alpha: 0.3), width: 1.5),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderSide: BorderSide(color: kPrimary.withValues(alpha: 0.3), width: 1.5),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: kPrimary, width: 2),
+        borderRadius: BorderRadius.circular(14),
+      ),
+    ),
+
+    // ── ProgressIndicator ───────────────────────────────────────────────────
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: kPrimary,
+      linearTrackColor: kCard,
+    ),
+
+    // ── Dialog ──────────────────────────────────────────────────────────────
+    dialogTheme: DialogTheme(
+      backgroundColor: kCard,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      titleTextStyle: const TextStyle(
+          fontSize: 20, fontWeight: FontWeight.bold, color: kOnSurface),
+      contentTextStyle: const TextStyle(
+          fontSize: 16, color: Color(0xFFB0BEC5), height: 1.5),
+    ),
+
+    // ── Chip ────────────────────────────────────────────────────────────────
+    chipTheme: ChipThemeData(
+      backgroundColor: kCard,
+      labelStyle: const TextStyle(color: kOnSurface, fontSize: 14),
+      side: BorderSide(color: kPrimary.withValues(alpha: 0.3), width: 1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
   );
 }
+
+

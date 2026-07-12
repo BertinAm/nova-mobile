@@ -1,13 +1,14 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/camera/camera_service.dart';
-import '../../../../core/settings/settings_service.dart';
+import '../../../../core/design/nova_design_system.dart';
 import '../../../../injection_container.dart';
 import '../../../../main.dart' show globalStopCurrentOption;
 import '../../domain/entities/obstacle_detection_result.dart';
 import '../bloc/obstacle_bloc.dart';
+import '../../../../core/camera/camera_service.dart';
+import '../../../../core/settings/settings_service.dart';
+import 'package:camera/camera.dart';
 
 class ObstaclePage extends StatelessWidget {
   const ObstaclePage({super.key});
@@ -32,12 +33,10 @@ class _ObstacleViewState extends State<_ObstacleView> {
   @override
   void initState() {
     super.initState();
-    // Register global stop hook so "stop option" voice command works
     globalStopCurrentOption = () {
       if (mounted) context.read<ObstacleBloc>().add(const StopObstacleDetection());
     };
 
-    // Auto-start if navigated via voice (arguments == true)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final autoStart = ModalRoute.of(context)?.settings.arguments == true;
       if (autoStart) {
@@ -48,194 +47,178 @@ class _ObstacleViewState extends State<_ObstacleView> {
 
   @override
   void dispose() {
-    // Clear stop hook when leaving page
     globalStopCurrentOption = null;
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Option 1 — Obstacle Detection'),
-        leading: BackButton(onPressed: () {
-          context.read<ObstacleBloc>().add(const StopObstacleDetection());
-          Navigator.pop(context);
-        }),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: BlocBuilder<ObstacleBloc, ObstacleState>(
-            builder: (context, state) {
-              final detecting = state is ObstacleDetecting;
-              final obstacles = detecting ? state.obstacles : const <DetectedObstacle>[];
+    return BlocBuilder<ObstacleBloc, ObstacleState>(
+      builder: (context, state) {
+        final detecting  = state is ObstacleDetecting;
+        final obstacles  = detecting ? state.obstacles : const <DetectedObstacle>[];
+        final hasError   = state is ObstacleError;
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ── Status card ────────────────────────────────────────────
-                  Semantics(
-                    label: detecting ? 'Obstacle detection is running' : 'Obstacle detection is stopped',
-                    liveRegion: true,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: detecting
-                            ? cs.primaryContainer.withValues(alpha: 0.6)
-                            : cs.errorContainer.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(children: [
-                        Icon(detecting ? Icons.sensors_rounded : Icons.sensors_off_rounded,
-                            color: detecting ? cs.primary : cs.error),
-                        const SizedBox(width: 12),
-                        Text(
-                          detecting ? 'Running — listening for obstacles' : 'Stopped',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ]),
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ── Start / Stop ────────────────────────────────────────────
-                  Row(children: [
-                    Expanded(
-                      child: Semantics(
-                        button: true, enabled: !detecting,
-                        label: 'Start obstacle detection',
-                        child: ElevatedButton.icon(
-                          onPressed: detecting ? null : () =>
-                              context.read<ObstacleBloc>().add(const StartObstacleDetection()),
-                          icon: const Icon(Icons.play_arrow_rounded),
-                          label: const Text('Start'),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Semantics(
-                        button: true, enabled: detecting,
-                        label: 'Stop obstacle detection',
-                        child: OutlinedButton.icon(
-                          onPressed: detecting ? () =>
-                              context.read<ObstacleBloc>().add(const StopObstacleDetection()) : null,
-                          icon: const Icon(Icons.stop_rounded),
-                          label: const Text('Stop'),
-                        ),
-                      ),
-                    ),
-                  ]),
-
-                  const SizedBox(height: 12),
-
-                  // ── Camera preview (always shown here) ─────────────────────
-                  _CameraPreviewWidget(),
-
-                  const SizedBox(height: 8),
-
-                  if (state is ObstacleError) ...[
-                    Semantics(
-                      liveRegion: true,
-                      label: 'Error: ${state.message}',
-                      child: Text(state.message,
-                          style: TextStyle(color: cs.error)),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-
-                  // ── Obstacle list ────────────────────────────────────────────
-                  Expanded(
-                    child: obstacles.isEmpty
-                        ? Center(
-                            child: Semantics(
-                              liveRegion: true,
-                              label: detecting ? 'Scanning for obstacles' : 'Press start to begin scanning',
-                              child: Text(
-                                detecting ? 'Scanning…' : 'Press Start to begin.',
-                                style: Theme.of(context).textTheme.bodyLarge,
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          )
-                        : ListView.builder(
-                            itemCount: obstacles.length,
-                            itemBuilder: (context, i) {
-                              final o = obstacles[i];
-                              final desc =
-                                  '${o.label} — ${o.spokenDirection}, '
-                                  '${o.estimatedDistanceMeters.toStringAsFixed(1)} metres, '
-                                  '${o.zoneName} zone.';
-                              return Semantics(
-                                label: desc, liveRegion: true,
-                                child: Card(
-                                  child: ListTile(
-                                    leading: Icon(
-                                      o.zone == ObstacleZone.near
-                                          ? Icons.warning_rounded
-                                          : Icons.warning_amber_rounded,
-                                      color: o.zone == ObstacleZone.near
-                                          ? cs.error : cs.secondary,
-                                    ),
-                                    title: Text('${o.label} — ${o.spokenDirection}'),
-                                    subtitle: Text(
-                                      '${o.zoneName} • '
-                                      '${o.estimatedDistanceMeters.toStringAsFixed(1)} m • '
-                                      '${(o.confidence * 100).toStringAsFixed(0)}%',
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              );
-            },
+        return NovaScaffold(
+          featureNumber: 1,
+          title: 'Obstacle Detection',
+          icon: Icons.warning_amber_rounded,
+          semanticPageLabel:
+              'Obstacle detection page. '
+              '${detecting ? "Currently running." : "Currently stopped."}',
+          onBack: () {
+            context.read<ObstacleBloc>().add(const StopObstacleDetection());
+            Navigator.pop(context);
+          },
+          statusBanner: NovaStatusBanner(
+            isActive: detecting,
+            activeLabel: 'Running — scanning for obstacles',
+            idleLabel: 'Stopped — press Start to begin',
+            activeColor: kNovaDanger,
+            activeIcon: Icons.sensors_rounded,
+            idleIcon: Icons.sensors_off_rounded,
           ),
-        ),
-      ),
+          body: Padding(
+            padding: const EdgeInsets.all(kPagePad),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: kGapS),
+
+                // ── Camera preview (debug) ────────────────────────────────────
+                _CameraPreviewSection(),
+
+                const SizedBox(height: kGapS),
+
+                // ── Error state ───────────────────────────────────────────────
+                if (state case ObstacleError(:final message))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: kGapS),
+                    child: NovaResultCard(
+                      icon: Icons.error_outline_rounded,
+                      headline: message,
+                      color: kNovaDanger,
+                    ),
+                  ),
+
+                // ── Start / Stop ──────────────────────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: NovaBigButton(
+                        label: 'Start',
+                        icon: Icons.play_arrow_rounded,
+                        enabled: !detecting,
+                        semanticHint: 'Begin scanning your surroundings for obstacles',
+                        onTap: () => context
+                            .read<ObstacleBloc>()
+                            .add(const StartObstacleDetection()),
+                      ),
+                    ),
+                    const SizedBox(width: kGapS),
+                    Expanded(
+                      child: NovaOutlineButton(
+                        label: 'Stop',
+                        icon: Icons.stop_rounded,
+                        enabled: detecting,
+                        semanticHint: 'Stop obstacle detection',
+                        borderColor: kNovaDanger,
+                        foregroundColor: kNovaDanger,
+                        onTap: () => context
+                            .read<ObstacleBloc>()
+                            .add(const StopObstacleDetection()),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: kGapM),
+
+                // ── Obstacles list ────────────────────────────────────────────
+                Expanded(
+                  child: obstacles.isEmpty
+                      ? NovaInfoState(
+                          icon: detecting
+                              ? Icons.radar_rounded
+                              : Icons.sensors_off_rounded,
+                          message: detecting
+                              ? 'Scanning your surroundings…'
+                              : 'Press Start to begin scanning.',
+                          iconColor: detecting ? kNovaPrimary : kNovaSubtext,
+                          semanticLabel: detecting
+                              ? 'Scanning for obstacles'
+                              : 'Stopped. Press Start to begin.',
+                        )
+                      : ListView.builder(
+                          itemCount: obstacles.length,
+                          itemBuilder: (context, i) {
+                            final o = obstacles[i];
+                            final desc =
+                                '${o.label} — ${o.spokenDirection}, '
+                                '${o.estimatedDistanceMeters.toStringAsFixed(1)} metres, '
+                                '${o.zoneName} zone.';
+                            return NovaObstacleCard(
+                              label: o.label,
+                              direction: o.spokenDirection,
+                              distance: o.estimatedDistanceMeters,
+                              zone: o.zoneName,
+                              confidence: o.confidence,
+                              semanticDesc: desc,
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
-// ─── Camera preview inside obstacle page ──────────────────────────────────────
-class _CameraPreviewWidget extends StatelessWidget {
+class _CameraPreviewSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<bool>(
       valueListenable: getIt<SettingsService>().debugCameraPreview,
-      builder: (_, showDebugLabel, __) {
+      builder: (_, show, __) {
+        if (!show) return const SizedBox.shrink();
         final ctrl = getIt<CameraService>().controller;
         if (ctrl == null || !ctrl.value.isInitialized) return const SizedBox.shrink();
-        return Container(
-          height: 180,
-          margin: const EdgeInsets.only(bottom: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+
+        return Semantics(
+          excludeSemantics: true,
+          label: 'Live camera preview',
+          child: Container(
+            height: 200,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: kNovaPrimary.withValues(alpha: 0.4), width: 1.5),
             ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(13),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                CameraPreview(ctrl),
-                if (showDebugLabel)
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CameraPreview(ctrl),
                   Positioned(
-                    top: 6, left: 8,
+                    top: 8, left: 10,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      color: Colors.black54,
-                      child: const Text('Debug', style: TextStyle(color: Colors.white60, fontSize: 10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'LIVE',
+                        style: TextStyle(color: kNovaPrimary, fontSize: 11,
+                            fontWeight: FontWeight.bold, letterSpacing: 1),
+                      ),
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
           ),
         );

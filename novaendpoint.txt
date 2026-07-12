@@ -1,0 +1,1047 @@
+NOVA Backend API
+ 1.0.0 
+OAS 3.1
+/openapi.json
+Navigational Object and Voice Assistant — Backend Services
+
+Authorize
+Authentication
+
+
+POST
+/auth/register
+Register
+
+Register a new NOVA user account.
+
+Parameters
+Try it out
+No parameters
+
+Request body
+
+application/json
+Example Value
+Schema
+{
+  "email": "user@example.com",
+  "password": "stringst",
+  "preferred_language": "en-CM"
+}
+Responses
+Code	Description	Links
+201	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "id": "string",
+  "email": "user@example.com",
+  "preferred_language": "string"
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+
+POST
+/auth/login
+Login
+
+Authenticate with email/password and receive JWT access + refresh tokens.
+
+Parameters
+Try it out
+No parameters
+
+Request body
+
+application/x-www-form-urlencoded
+grant_type
+username *
+string
+password *
+string
+scope
+string
+client_id
+client_secret
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "access_token": "string",
+  "refresh_token": "string",
+  "token_type": "bearer"
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+
+POST
+/auth/refresh
+Refresh Token
+
+Exchange a valid, unexpired refresh token for a new token pair.
+
+Parameters
+Try it out
+No parameters
+
+Request body
+
+application/json
+Example Value
+Schema
+{
+  "refresh_token": "string"
+}
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "access_token": "string",
+  "refresh_token": "string",
+  "token_type": "bearer"
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+Scene Description
+
+
+POST
+/scene/describe
+Describe Scene
+
+
+Accept a still frame from the NOVA mobile app and return a natural language scene description. The image is processed transiently and is never written to disk or the database (FR-03-08, NFR-28).
+
+Parameters
+Try it out
+No parameters
+
+Request body
+
+multipart/form-data
+image *
+string($binary)
+JPEG or PNG image, max 512KB
+
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "description": "string"
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+Face Recognition
+
+
+POST
+/faces/enrol
+Enrol Face
+
+
+Enrol a known contact from a face crop image. Only the encrypted embedding is persisted — the raw image is discarded after extraction (FR-05-01, FR-05-08).
+
+Parameters
+Try it out
+Name	Description
+contact_name *
+string
+(query)
+contact_name
+Request body
+
+multipart/form-data
+face_crop *
+string($binary)
+Responses
+Code	Description	Links
+201	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "face_id": "string",
+  "contact_name": "string"
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+
+POST
+/faces/match
+Match Face
+
+
+Match a probe face embedding against the current user's enrolled gallery. Used for galleries exceeding the on-device limit (FR-05-04).
+
+Parameters
+Try it out
+No parameters
+
+Request body
+
+application/json
+Example Value
+Schema
+{
+  "embedding_b64": "string",
+  "threshold": 1
+}
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "match_found": true,
+  "contact_name": "string",
+  "similarity": 0
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+
+GET
+/faces/
+List Faces
+
+
+List enrolled contacts (names only — no embeddings returned).
+
+Parameters
+Try it out
+No parameters
+
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+[
+  {
+    "face_id": "string",
+    "contact_name": "string"
+  }
+]
+No links
+
+DELETE
+/faces/{face_id}
+Delete Face
+
+
+Delete an enrolled contact and its embedding (FR-05-09 — right to erasure).
+
+Parameters
+Try it out
+Name	Description
+face_id *
+string
+(path)
+face_id
+Responses
+Code	Description	Links
+204	
+Successful Response
+
+Example Value
+"string"
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+Usage Logs
+
+
+POST
+/logs/sync
+Sync Logs
+
+
+Batch-insert usage events from the device's offline queue. Idempotent.
+
+Parameters
+Try it out
+No parameters
+
+Request body
+
+application/json
+Example Value
+Schema
+{
+  "events": [
+    {
+      "id": "string",
+      "module_id": "MOD-03",
+      "timestamp": "2026-07-11T15:37:48.545Z",
+      "outcome": "string",
+      "confidence_score": 1
+    }
+  ]
+}
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "inserted": 0,
+  "total": 0
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+
+POST
+/logs/feedback/sync
+Sync Feedback
+
+
+Batch-insert user feedback (good/bad) records. Idempotent.
+
+Parameters
+Try it out
+No parameters
+
+Request body
+
+application/json
+Example Value
+Schema
+{
+  "feedback": [
+    {
+      "id": "string",
+      "event_id": "string",
+      "is_positive": true,
+      "timestamp": "2026-07-11T15:37:48.557Z"
+    }
+  ]
+}
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "inserted": 0,
+  "total": 0
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+Model Registry
+
+
+GET
+/models/latest/{module_id}
+Get Latest Model
+
+
+Return metadata for the latest active model for a module (FR-06-07).
+
+Parameters
+Try it out
+Name	Description
+module_id *
+string
+(path)
+module_id
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "model_id": "string",
+  "version": "string",
+  "filename": "string",
+  "checksum": "string",
+  "download_url": "string",
+  "hf_repo_url": "string"
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+
+GET
+/models/download/{model_id}
+Download Model
+
+
+Stream the TFLite model file. The mobile app verifies the SHA-256 checksum (from /models/latest) before installing — FR-06-09.
+
+Parameters
+Try it out
+Name	Description
+model_id *
+string
+(path)
+model_id
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+"string"
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+
+POST
+/models/register
+Register Model
+
+
+Upload and register a new TFLite model version. Saves the file to MODEL_STORAGE_PATH, computes its SHA-256 checksum, and (by default) deactivates any previously active model for the same module.
+
+Restricted to operator/admin accounts (User.is_operator) — regular BVI user accounts cannot push new models.
+
+Parameters
+Try it out
+No parameters
+
+Request body
+
+multipart/form-data
+module_id *
+string
+version *
+string
+hf_repo_url
+notes
+activate
+boolean
+file *
+string($binary)
+Responses
+Code	Description	Links
+201	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "model_id": "string",
+  "module_id": "string",
+  "version": "string",
+  "filename": "string",
+  "checksum": "string",
+  "is_active": true,
+  "uploaded_at": "2026-07-11T15:37:48.589Z"
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+Emergency Contact
+
+
+GET
+/emergency-contact/
+Get Emergency Contact
+
+
+Return the current user's emergency contact, if one is set.
+
+Parameters
+Try it out
+No parameters
+
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "id": "string",
+  "contact_name": "string",
+  "phone_number": "string"
+}
+No links
+
+PUT
+/emergency-contact/
+Set Emergency Contact
+
+
+Create or replace the current user's emergency contact.
+
+Parameters
+Try it out
+No parameters
+
+Request body
+
+application/json
+Example Value
+Schema
+{
+  "contact_name": "string",
+  "phone_number": "strings"
+}
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "id": "string",
+  "contact_name": "string",
+  "phone_number": "string"
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+No links
+
+DELETE
+/emergency-contact/
+Delete Emergency Contact
+
+
+Remove the current user's emergency contact.
+
+Parameters
+Try it out
+No parameters
+
+Responses
+Code	Description	Links
+204	
+Successful Response
+
+Example Value
+"string"
+No links
+Health
+
+
+GET
+/health
+Health
+
+Liveness + readiness probe.
+
+Reports ok only if the database is actually reachable; a misconfigured or unreachable DB returns 503 so orchestrators (Docker healthcheck, Kubernetes, load balancer) stop routing traffic to this instance instead of serving 500s.
+
+Parameters
+Try it out
+No parameters
+
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+"string"
+No links
+
+Schemas
+Body_describe_scene_scene_describe_postCollapse allobject
+imageCollapse allstringbinary
+JPEG or PNG image, max 512KB
+
+Body_enrol_face_faces_enrol_postCollapse allobject
+face_cropstringbinary
+Body_login_auth_login_postCollapse allobject
+grant_typeCollapse all(string | null)
+Any ofCollapse all(string | null)
+#0stringmatches password
+#1null
+usernamestring
+passwordstring
+scopeCollapse allstring
+Default""
+client_idCollapse all(string | null)
+Any ofCollapse all(string | null)
+#0string
+#1null
+client_secretCollapse all(string | null)
+Any ofCollapse all(string | null)
+#0string
+#1null
+Body_register_model_models_register_postCollapse allobject
+module_idstring
+versionstring
+hf_repo_urlCollapse all(string | null)
+Any ofCollapse all(string | null)
+#0string
+#1null
+notesCollapse all(string | null)
+Any ofCollapse all(string | null)
+#0string
+#1null
+activateCollapse allboolean
+Defaulttrue
+filestringbinary
+EmergencyContactRequestCollapse allobject
+contact_namestring[1, 100] characters
+phone_numberstring[7, 20] characters
+EmergencyContactResponseCollapse allobject
+idstring
+contact_namestring
+phone_numberstring
+EnrolledFaceSummaryCollapse allobject
+face_idstring
+contact_namestring
+FaceEnrolResponseCollapse allobject
+face_idstring
+contact_namestring
+FaceMatchRequestCollapse allobject
+Probe embedding sent by the mobile app, base64-encoded float32 bytes.
+
+The mobile app extracts the embedding on-device (or via the detect step) — raw face images are never required by this endpoint.
+
+embedding_b64Collapse allstring
+Base64-encoded 512-d float32 embedding
+
+thresholdCollapse all(number | null)
+Any ofCollapse all(number | null)
+#0number[0, 1]
+#1null
+FaceMatchResponseCollapse allobject
+match_foundboolean
+contact_nameCollapse all(string | null)
+Any ofCollapse all(string | null)
+#0string
+#1null
+similarityCollapse all(number | null)
+Any ofCollapse all(number | null)
+#0number
+#1null
+FeedbackBatchCollapse allobject
+feedbackCollapse allarray<object>
+ItemsCollapse allobject
+idstring
+event_idstring
+is_positiveboolean
+timestampstringdate-time
+FeedbackInCollapse allobject
+idstring
+event_idstring
+is_positiveboolean
+timestampstringdate-time
+HTTPValidationErrorCollapse allobject
+detailCollapse allarray<object>
+ItemsCollapse allobject
+locCollapse allarray<(string | integer)>
+ItemsCollapse all(string | integer)
+Any ofCollapse all(string | integer)
+#0string
+#1integer
+msgstring
+typestring
+ModelRegisterResponseCollapse allobject
+model_idstring
+module_idstring
+versionstring
+filenamestring
+checksumstring
+is_activeboolean
+uploaded_atstringdate-time
+ModelVersionResponseCollapse allobject
+model_idstring
+versionstring
+filenamestring
+checksumstring
+download_urlstring
+hf_repo_urlCollapse all(string | null)
+Any ofCollapse all(string | null)
+#0string
+#1null
+RefreshRequestCollapse allobject
+refresh_tokenstring
+SceneDescribeResponseCollapse allobject
+descriptionstring<= 600 characters
+SyncResponseCollapse allobject
+insertedinteger
+totalinteger
+TokenResponseCollapse allobject
+access_tokenstring
+refresh_tokenstring
+token_typeCollapse allstring
+Default"bearer"
+UsageEventBatchCollapse allobject
+eventsCollapse allarray<object>
+ItemsCollapse allobject
+idCollapse allstring
+Client-generated UUID, used for idempotent sync
+
+module_idstringmatches ^MOD-0[1-5]$
+timestampstringdate-time
+outcomestring
+confidence_scoreCollapse all(number | null)
+Any ofCollapse all(number | null)
+#0number[0, 1]
+#1null
+UsageEventInCollapse allobject
+idCollapse allstring
+Client-generated UUID, used for idempotent sync
+
+module_idstringmatches ^MOD-0[1-5]$
+timestampstringdate-time
+outcomestring
+confidence_scoreCollapse all(number | null)
+Any ofCollapse all(number | null)
+#0number[0, 1]
+#1null
+UserRegisterRequestCollapse allobject
+emailstringemail
+passwordstring[8, 128] characters
+preferred_languageCollapse allstring<= 10 characters
+Default"en-CM"
+UserRegisterResponseCollapse allobject
+idstring
+emailstringemail
+preferred_languagestring
+ValidationErrorCollapse allobject
+locCollapse allarray<(string | integer)>
+ItemsCollapse all(string | integer)
+Any ofCollapse all(string | integer)
+#0string
+#1integer
+msgstring
+typestring

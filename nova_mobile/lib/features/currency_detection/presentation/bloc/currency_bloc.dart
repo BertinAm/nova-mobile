@@ -70,7 +70,7 @@ class CurrencyBloc extends Bloc<CurrencyEvent, CurrencyState> {
     Emitter<CurrencyState> emit,
   ) async {
     emit(const CurrencyProcessing());
-    await _tts.speak('Identifying money.', priority: TtsPriority.high);
+    await _tts.speak('Let me check that for you.', priority: TtsPriority.high);
 
     final image = await _camera.captureStill();
     final result = await _classifyCurrency(image);
@@ -78,7 +78,7 @@ class CurrencyBloc extends Bloc<CurrencyEvent, CurrencyState> {
       (failure) async {
         emit(CurrencyError(failure.message));
         await _tts.speak(
-          'Currency detection failed. Please try again.',
+          'I couldn\'t identify the note. Please try again.',
           priority: TtsPriority.high,
         );
         await _db.insertUsageEvent(moduleId: ModuleIds.currency, outcome: 'error');
@@ -90,7 +90,7 @@ class CurrencyBloc extends Bloc<CurrencyEvent, CurrencyState> {
               ? ' The frame appears dark. Turn on the torch if possible.'
               : '';
           await _tts.speak(
-            'Could not identify the note clearly. Please try again with better lighting or closer to the camera.$lightingHint',
+            'I\'m not sure about this one. Try holding the note closer to the camera with more light.$lightingHint',
             priority: TtsPriority.high,
           );
           await _db.insertUsageEvent(

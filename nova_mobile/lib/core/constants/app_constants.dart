@@ -8,7 +8,7 @@ class AppConstants {
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://api.nova-assistive.cm',
+    defaultValue: 'https://nova-backend-r27n.onrender.com',
   );
 
   // Asset paths required by the mobile implementation guide.
@@ -38,12 +38,18 @@ class AppConstants {
   static const localFaceGalleryLimit = 20;
 
   // Backend paths.
-  static const authRefreshPath = '/auth/refresh';
-  static const sceneDescribePath = '/scene/describe';
-  static const facesMatchPath = '/faces/match';
-  static const modelsLatestPath = '/models/latest';
-  static const logsSyncPath = '/logs/sync';
-  static const feedbackSyncPath = '/logs/feedback/sync';
+  static const authRegisterPath     = '/auth/register';
+  static const authLoginPath        = '/auth/login';
+  static const authRefreshPath      = '/auth/refresh';
+  static const sceneDescribePath    = '/scene/describe';
+  static const facesEnrolPath       = '/faces/enrol';
+  static const facesMatchPath       = '/faces/match';
+  static const facesListPath        = '/faces/';
+  static const modelsLatestPath     = '/models/latest';
+  static const logsSyncPath         = '/logs/sync';
+  static const feedbackSyncPath     = '/logs/feedback/sync';
+  static const emergencyContactPath = '/emergency-contact/';
+  static const healthPath           = '/health';
 }
 
 class ModuleIds {

@@ -75,7 +75,7 @@ class SceneBloc extends Bloc<SceneEvent, SceneState> {
     if (!connected && !AppConstants.simulated) {
       emit(const SceneOfflineError());
       await _tts.speak(
-        'Scene description requires an internet connection. Please try again when connected.',
+        'You\'ll need an internet connection for this one. Please connect and try again.',
         priority: TtsPriority.high,
       );
       await _db.insertUsageEvent(moduleId: ModuleIds.scene, outcome: 'offline');
@@ -83,7 +83,7 @@ class SceneBloc extends Bloc<SceneEvent, SceneState> {
     }
 
     emit(const SceneLoading());
-    await _tts.speak('Describing the scene, please wait.', priority: TtsPriority.high);
+    await _tts.speak('Let me look at what\'s around you. One moment.', priority: TtsPriority.high);
 
     final image = await _camera.captureStill();
     final result = await _describeScene(image);
@@ -91,7 +91,7 @@ class SceneBloc extends Bloc<SceneEvent, SceneState> {
       (failure) async {
         emit(SceneError(failure.message));
         await _tts.speak(
-          'Scene description is unavailable right now. Please try again later.',
+          'I wasn\'t able to describe the scene this time. Please try again.',
           priority: TtsPriority.high,
         );
         await _db.insertUsageEvent(moduleId: ModuleIds.scene, outcome: 'error');

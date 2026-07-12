@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/design/nova_design_system.dart';
 import '../../../../core/settings/settings_service.dart';
 import '../../../../core/tts/tts_service.dart';
 import '../../../../injection_container.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../emergency_contact/domain/repositories/emergency_contact_repository.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -15,7 +19,6 @@ class _SettingsPageState extends State<SettingsPage> {
   late final SettingsService _settings;
   late final TtsService _tts;
 
-  // Local mirrors of notifier values for the setState pattern
   late double _rate;
   late String _language;
   late bool _debugCamera;
@@ -23,18 +26,17 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    _settings = getIt<SettingsService>();
-    _tts = getIt<TtsService>();
-    _rate = _settings.speechRate.value;
-    _language = _settings.language.value;
+    _settings    = getIt<SettingsService>();
+    _tts         = getIt<TtsService>();
+    _rate        = _settings.speechRate.value;
+    _language    = _settings.language.value;
     _debugCamera = _settings.debugCameraPreview.value;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _tts.speak('Settings page. Swipe to explore options.', priority: TtsPriority.normal);
+      _tts.speak('Settings page. Swipe up and down to explore your options.', priority: TtsPriority.normal);
     });
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
   String get _rateLabel {
     if (_rate <= 0.6) return 'Very slow';
     if (_rate <= 0.85) return 'Slow';
@@ -43,52 +45,62 @@ class _SettingsPageState extends State<SettingsPage> {
     return 'Very fast';
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Option 6 — Settings'),
-        actions: [
-          Semantics(
-            button: true,
-            label: 'Read settings aloud',
-            child: IconButton(
-              icon: const Icon(Icons.record_voice_over),
-              tooltip: 'Read settings aloud',
-              onPressed: _readSettingsAloud,
-            ),
+    return NovaScaffold(
+      featureNumber: 6,
+      title: 'Settings',
+      icon: Icons.settings_rounded,
+      semanticPageLabel: 'Settings page. Adjust speech speed, language, and manage your account.',
+      body: ListView(
+        padding: const EdgeInsets.all(kPagePad),
+        children: [
+          // ── Read settings aloud ─────────────────────────────────────────────
+          NovaBigButton(
+            label: 'Read Settings Aloud',
+            icon: Icons.record_voice_over_rounded,
+            color: kNovaCard,
+            textColor: kNovaPrimary,
+            semanticHint: 'Speaks a summary of all your current settings',
+            onTap: _readSettingsAloud,
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          children: [
-            // ─── TTS Speed ──────────────────────────────────────────────────
-            const _SectionHeader('Voice Speed'),
-            Semantics(
-              label: 'Speech rate slider',
-              value: _rateLabel,
-              hint: 'Swipe left or right to adjust',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        ExcludeSemantics(child: Text('Slower', style: Theme.of(context).textTheme.bodySmall)),
-                        Text(
-                          _rateLabel,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        ExcludeSemantics(child: Text('Faster', style: Theme.of(context).textTheme.bodySmall)),
-                      ],
-                    ),
+
+          const NovaDivider(),
+
+          // ── Voice speed ─────────────────────────────────────────────────────
+          const NovaSectionHeader('Voice Speed'),
+
+          Semantics(
+            label: 'Speech rate slider',
+            value: _rateLabel,
+            hint: 'Swipe left or right to adjust',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: kGapXS),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      ExcludeSemantics(child: Text('Slower', style: TextStyle(color: kNovaSubtext, fontSize: 14))),
+                      Text(
+                        _rateLabel,
+                        style: const TextStyle(color: kNovaPrimary, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      ExcludeSemantics(child: Text('Faster', style: TextStyle(color: kNovaSubtext, fontSize: 14))),
+                    ],
                   ),
-                  Slider(
+                ),
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: kNovaPrimary,
+                    inactiveTrackColor: kNovaCard,
+                    thumbColor: kNovaPrimary,
+                    overlayColor: kNovaPrimary.withValues(alpha: 0.2),
+                    trackHeight: 6,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14),
+                  ),
+                  child: Slider(
                     value: _rate,
                     min: 0.5,
                     max: 2.0,
@@ -102,98 +114,178 @@ class _SettingsPageState extends State<SettingsPage> {
                       await _tts.speak('Speed set to $_rateLabel.', priority: TtsPriority.high);
                     },
                   ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // ─── TTS Quick Preset Buttons ────────────────────────────────────
-            Semantics(
-              label: 'Speech rate presets',
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Expanded(child: _RatePresetButton(label: 'Slow', rate: 0.7, currentRate: _rate, onTap: _setRate)),
-                    const SizedBox(width: 8),
-                    Expanded(child: _RatePresetButton(label: 'Normal', rate: 1.0, currentRate: _rate, onTap: _setRate)),
-                    const SizedBox(width: 8),
-                    Expanded(child: _RatePresetButton(label: 'Fast', rate: 1.4, currentRate: _rate, onTap: _setRate)),
-                  ],
                 ),
-              ),
+              ],
             ),
+          ),
 
-            const SizedBox(height: 20),
-            const Divider(),
+          const SizedBox(height: kGapS),
 
-            // ─── Language ───────────────────────────────────────────────────
-            const _SectionHeader('Language'),
-            _LanguageOption(
-              code: 'en-CM',
-              displayName: 'English',
-              selectedCode: _language,
-              onSelect: (code) => _setLanguage(code, 'English selected.'),
+          // ── Speed presets ───────────────────────────────────────────────────
+          Semantics(
+            label: 'Speech rate presets',
+            child: Row(
+              children: [
+                Expanded(child: _RatePresetButton(label: 'Slow',   rate: 0.7, currentRate: _rate, onTap: _setRate)),
+                const SizedBox(width: kGapS),
+                Expanded(child: _RatePresetButton(label: 'Normal', rate: 1.0, currentRate: _rate, onTap: _setRate)),
+                const SizedBox(width: kGapS),
+                Expanded(child: _RatePresetButton(label: 'Fast',   rate: 1.4, currentRate: _rate, onTap: _setRate)),
+              ],
             ),
-            _LanguageOption(
-              code: 'fr-CM',
-              displayName: 'Français',
-              selectedCode: _language,
-              onSelect: (code) => _setLanguage(code, 'Français sélectionné.'),
-            ),
+          ),
 
-            const SizedBox(height: 8),
-            const Divider(),
+          const NovaDivider(),
 
-            // ─── Developer / Debug ──────────────────────────────────────────
-            const _SectionHeader('Developer'),
-            Semantics(
-              label: 'Debug camera preview',
+          // ── Language ────────────────────────────────────────────────────────
+          const NovaSectionHeader('Language'),
+
+          _LanguageOption(
+            code: 'en-CM', displayName: 'English',
+            icon: Icons.language_rounded,
+            selectedCode: _language,
+            onSelect: (c) => _setLanguage(c, 'English selected.'),
+          ),
+          const SizedBox(height: kGapS),
+          _LanguageOption(
+            code: 'fr-CM', displayName: 'Français',
+            icon: Icons.language_rounded,
+            selectedCode: _language,
+            onSelect: (c) => _setLanguage(c, 'Français sélectionné.'),
+          ),
+
+          const NovaDivider(),
+
+          // ── Emergency Contact ───────────────────────────────────────────────
+          const NovaSectionHeader('Safety'),
+
+          NovaOutlineButton(
+            label: 'Manage Emergency Contact',
+            icon: Icons.contact_emergency_rounded,
+            semanticHint: 'Opens emergency contact settings where you can add or change your emergency contact',
+            onTap: () {
+              Navigator.pushNamed(context, '/emergency');
+            },
+          ),
+
+          const NovaDivider(),
+
+          // ── Debug ───────────────────────────────────────────────────────────
+          const NovaSectionHeader('Developer'),
+
+          MergeSemantics(
+            child: Semantics(
+              label: 'Debug camera preview toggle',
               value: _debugCamera ? 'enabled' : 'disabled',
-              hint: 'Double tap to toggle. When enabled, live camera feed is shown in Obstacle Detection.',
+              hint: 'Double tap to toggle. Shows live camera feed in Obstacle Detection.',
               toggled: _debugCamera,
-              child: SwitchListTile(
-                title: const Text('Camera Preview (Debug)'),
-                subtitle: const Text('Shows live camera feed in Obstacle Detection for verification'),
-                secondary: const Icon(Icons.videocam_outlined),
-                value: _debugCamera,
-                onChanged: (val) async {
+              child: GestureDetector(
+                onTap: () async {
+                  final val = !_debugCamera;
                   setState(() => _debugCamera = val);
                   await _settings.setDebugCameraPreview(val);
-                  await _tts.speak(
-                    'Camera preview ${val ? 'enabled' : 'disabled'}.',
-                    priority: TtsPriority.normal,
-                  );
+                  await _tts.speak('Camera preview ${val ? "turned on" : "turned off"}.', priority: TtsPriority.normal);
                 },
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ─── Confirm ─────────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Semantics(
-                button: true,
-                label: 'Confirm and save settings',
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                  onPressed: () => _tts.speak('Settings saved.', priority: TtsPriority.normal),
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text('Confirm Settings'),
+                child: Container(
+                  padding: const EdgeInsets.all(kGapS),
+                  decoration: BoxDecoration(
+                    color: kNovaCard,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _debugCamera ? kNovaPrimary.withValues(alpha: 0.4) : kNovaPrimary.withValues(alpha: 0.1),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.videocam_outlined, color: _debugCamera ? kNovaPrimary : kNovaSubtext, size: 26),
+                      const SizedBox(width: kGapS),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Camera Preview (Debug)',
+                                style: TextStyle(color: _debugCamera ? kNovaOnSurface : kNovaSubtext, fontSize: 16, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 2),
+                            Text('Shows live camera feed overlay', style: TextStyle(color: kNovaSubtext, fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _debugCamera,
+                        onChanged: null, // handled by GestureDetector above
+                        activeColor: kNovaPrimary,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-          ],
-        ),
+          ),
+
+          const NovaDivider(),
+
+          // ── Account ─────────────────────────────────────────────────────────
+          const NovaSectionHeader('Account'),
+
+          NovaOutlineButton(
+            label: 'Log Out',
+            icon: Icons.logout_rounded,
+            borderColor: kNovaDanger,
+            foregroundColor: kNovaDanger,
+            semanticHint: 'Double tap to sign out of your account',
+            onTap: () => _confirmLogout(context),
+          ),
+
+          const SizedBox(height: kGapXL),
+
+          // ── Confirm ─────────────────────────────────────────────────────────
+          NovaBigButton(
+            label: 'Done',
+            icon: Icons.check_circle_outline_rounded,
+            semanticHint: 'Confirms your settings and goes back to the main menu',
+            onTap: () {
+              _tts.speak('Settings saved. Going back.', priority: TtsPriority.normal);
+              Navigator.maybePop(context);
+            },
+          ),
+
+          const SizedBox(height: kGapM),
+        ],
       ),
     );
   }
 
-  // ─── Actions ─────────────────────────────────────────────────────────────
+  void _confirmLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Log Out?'),
+        content: const Text(
+          'You will need to log in again to use cloud features like scene description '
+          'and emergency contact sync. On-device features will still work.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              _tts.speak('Logging you out. See you next time.', priority: TtsPriority.high, interrupt: true);
+              // Pop all routes and navigate to auth
+              Navigator.pushNamedAndRemoveUntil(context, '/auth', (_) => false);
+              // Trigger logout in a new AuthBloc since we're outside the provider tree
+              getIt<AuthBloc>()..add(const AuthLogoutRequested());
+            },
+            child: Text('Log Out', style: TextStyle(color: kNovaDanger)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _setRate(double rate) async {
     setState(() => _rate = rate);
     await _settings.setSpeechRate(rate);
@@ -208,37 +300,25 @@ class _SettingsPageState extends State<SettingsPage> {
     await _tts.speak(announcement, priority: TtsPriority.high);
   }
 
-  void _readSettingsAloud() {
+  Future<void> _readSettingsAloud() async {
     final langName = _language == 'fr-CM' ? 'Français' : 'English';
+    
+    String emergencyStatus = 'You don\'t have an emergency contact set up yet.';
+    try {
+      final contact = await getIt<EmergencyContactRepository>().getContact();
+      if (contact != null) {
+        emergencyStatus = 'Your emergency contact is ${contact.contactName}.';
+      }
+    } catch (_) {}
+
     _tts.speak(
-      'Current settings: Speed $_rateLabel. Language $langName. '
-      'Camera preview ${_debugCamera ? "on" : "off"}.',
+      'Here are your current settings. '
+      'Voice speed is $_rateLabel. '
+      'Language is $langName. '
+      'Camera preview is ${_debugCamera ? "on" : "off"}. '
+      '$emergencyStatus',
       priority: TtsPriority.high,
       interrupt: true,
-    );
-  }
-}
-
-// ─── Reusable sub-widgets ────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Semantics(
-        header: true,
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                letterSpacing: 0.8,
-              ),
-        ),
-      ),
     );
   }
 }
@@ -250,7 +330,6 @@ class _RatePresetButton extends StatelessWidget {
     required this.currentRate,
     required this.onTap,
   });
-
   final String label;
   final double rate;
   final double currentRate;
@@ -263,14 +342,28 @@ class _RatePresetButton extends StatelessWidget {
       button: true,
       label: 'Set speech rate to $label',
       selected: isSelected,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          backgroundColor: isSelected
-              ? Theme.of(context).colorScheme.primaryContainer
-              : null,
+      child: GestureDetector(
+        onTap: () => onTap(rate),
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            color: isSelected ? kNovaPrimary.withValues(alpha: 0.2) : kNovaCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? kNovaPrimary : kNovaPrimary.withValues(alpha: 0.2),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? kNovaPrimary : kNovaSubtext,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontSize: 15,
+            ),
+          ),
         ),
-        onPressed: () => onTap(rate),
-        child: Text(label),
       ),
     );
   }
@@ -280,28 +373,57 @@ class _LanguageOption extends StatelessWidget {
   const _LanguageOption({
     required this.code,
     required this.displayName,
+    required this.icon,
     required this.selectedCode,
     required this.onSelect,
   });
-
   final String code;
   final String displayName;
+  final IconData icon;
   final String selectedCode;
   final Future<void> Function(String) onSelect;
 
   @override
   Widget build(BuildContext context) {
     final isSelected = selectedCode == code;
-    return Semantics(
-      label: 'Language option $displayName',
-      selected: isSelected,
-      hint: isSelected ? 'Currently selected' : 'Double tap to select',
-      child: RadioListTile<String>(
-        value: code,
-        groupValue: selectedCode,
-        title: Text(displayName),
-        secondary: isSelected ? const Icon(Icons.check_circle) : null,
-        onChanged: (value) => onSelect(value!),
+    return MergeSemantics(
+      child: Semantics(
+        label: 'Language option: $displayName',
+        selected: isSelected,
+        hint: isSelected ? 'Currently selected' : 'Double tap to select',
+        button: true,
+        child: GestureDetector(
+          onTap: () => onSelect(code),
+          child: Container(
+            height: 64,
+            padding: const EdgeInsets.symmetric(horizontal: kGapM),
+            decoration: BoxDecoration(
+              color: isSelected ? kNovaPrimary.withValues(alpha: 0.15) : kNovaCard,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isSelected ? kNovaPrimary : kNovaPrimary.withValues(alpha: 0.15),
+                width: isSelected ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: isSelected ? kNovaPrimary : kNovaSubtext, size: 22),
+                const SizedBox(width: kGapS),
+                Text(
+                  displayName,
+                  style: TextStyle(
+                    color: isSelected ? kNovaOnSurface : kNovaSubtext,
+                    fontSize: 18,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                const Spacer(),
+                if (isSelected)
+                  const Icon(Icons.check_circle_rounded, color: kNovaPrimary, size: 24),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

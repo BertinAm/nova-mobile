@@ -50,6 +50,8 @@ class VoiceCommandService {
     MapEntry('speed up',      VoiceCommand.speedUpTts),
     MapEntry('vitesse rapide',VoiceCommand.speedUpTts),
     // ── Emergency ────────────────────────────────────────────────────────
+    MapEntry('emergency',     VoiceCommand.emergency),
+    MapEntry('urgence',       VoiceCommand.emergency),
     MapEntry('call for help', VoiceCommand.emergency),
     MapEntry('au secours',    VoiceCommand.emergency),
     MapEntry('help',          VoiceCommand.emergency),
@@ -104,11 +106,37 @@ class VoiceCommandService {
       _processTranscript(transcript.toLowerCase());
 
   void _processTranscript(String transcript) {
+    if (transcript.isEmpty) return;
+
+    final inputTokens = transcript.split(RegExp(r'\s+'));
+    VoiceCommand? bestMatch;
+    double highestScore = 0.0;
+
     for (final entry in _commandEntries) {
-      if (transcript.contains(entry.key)) {
-        _router.dispatch(entry.value);
-        return;
+      final optionTokens = entry.key.split(RegExp(r'\s+'));
+      int matchCount = 0;
+
+      for (var token in inputTokens) {
+        if (optionTokens.contains(token)) {
+          matchCount++;
+        }
       }
+
+      double score = matchCount / (inputTokens.length + optionTokens.length - matchCount);
+      
+      // If exact string match, bump score to max
+      if (transcript.contains(entry.key)) {
+        score = 1.0;
+      }
+
+      if (score > highestScore && score >= 0.25) { // 0.25 confidence threshold
+        highestScore = score;
+        bestMatch = entry.value;
+      }
+    }
+
+    if (bestMatch != null) {
+      _router.dispatch(bestMatch);
     }
   }
 }

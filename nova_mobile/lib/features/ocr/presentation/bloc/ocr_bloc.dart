@@ -71,7 +71,7 @@ class OcrBloc extends Bloc<OcrEvent, OcrState> {
 
   Future<void> _onTrigger(TriggerOcr event, Emitter<OcrState> emit) async {
     emit(const OcrCapturing());
-    await _tts.speak('Capturing text.', priority: TtsPriority.high);
+    await _tts.speak('Hold steady, reading text.', priority: TtsPriority.high);
 
     final image = await _camera.captureStill();
     emit(const OcrProcessing());
@@ -81,7 +81,7 @@ class OcrBloc extends Bloc<OcrEvent, OcrState> {
       (failure) async {
         emit(OcrError(failure.message));
         await _tts.speak(
-          'Text recognition failed. Please try again.',
+          'I couldn\'t read the text. Please try again.',
           priority: TtsPriority.high,
         );
         await _db.insertUsageEvent(moduleId: ModuleIds.ocr, outcome: 'error');
@@ -90,7 +90,7 @@ class OcrBloc extends Bloc<OcrEvent, OcrState> {
         if (!ocrResult.success || ocrResult.text.trim().isEmpty) {
           emit(const OcrNoText());
           await _tts.speak(
-            'No text detected. Try moving the camera closer.',
+            'I can\'t see any text. Try moving the camera closer to what you want me to read.',
             priority: TtsPriority.high,
           );
           await _db.insertUsageEvent(moduleId: ModuleIds.ocr, outcome: 'no_text');

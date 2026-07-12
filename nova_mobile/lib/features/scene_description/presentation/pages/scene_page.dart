@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/design/nova_design_system.dart';
 import '../../../../injection_container.dart';
 import '../../../../main.dart' show globalStopCurrentOption;
 import '../bloc/scene_bloc.dart';
@@ -28,7 +29,7 @@ class _SceneViewState extends State<_SceneView> {
   @override
   void initState() {
     super.initState();
-    globalStopCurrentOption = null; // scene has no continuous process
+    globalStopCurrentOption = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final autoStart = ModalRoute.of(context)?.settings.arguments == true;
       if (autoStart) {
@@ -45,128 +46,82 @@ class _SceneViewState extends State<_SceneView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Option 3 — Describe Scene')),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: BlocBuilder<SceneBloc, SceneState>(
-            builder: (context, state) {
-              final isBusy = state is SceneLoading;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Cloud-dependency notice (SRS FR-03-02 user-facing explanation)
-                  Semantics(
-                    label: 'This feature requires an internet connection. Point the camera at a scene then press Describe Scene.',
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.4),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.wifi, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Requires internet. Point camera at a scene.',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+    return BlocBuilder<SceneBloc, SceneState>(
+      builder: (context, state) {
+        final isBusy = state is SceneLoading;
 
-                  Semantics(
-                    button: true,
-                    label: 'Describe scene',
-                    hint: 'Takes a photo and sends it to the cloud for a description. Requires internet.',
-                    enabled: !isBusy,
-                    child: ElevatedButton.icon(
-                      onPressed: isBusy
-                          ? null
-                          : () => context.read<SceneBloc>().add(const RequestSceneDescription()),
-                      icon: const Icon(Icons.image_search, size: 28),
-                      label: const Text('Describe scene'),
-                    ),
-                  ),
+        return NovaScaffold(
+          featureNumber: 3,
+          title: 'Describe Scene',
+          icon: Icons.image_search_rounded,
+          semanticPageLabel:
+              'Describe scene page. Point camera at a scene and press Describe.',
+          body: Padding(
+            padding: const EdgeInsets.all(kPagePad),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: kGapM),
 
-                  const SizedBox(height: 24),
-                  Expanded(child: _content(context, state)),
-                ],
-              );
-            },
+                // ── Network requirement notice ─────────────────────────────────
+                NovaInstructionCard(
+                  message:
+                      'Requires internet. Point the camera at your surroundings and press Describe Scene.',
+                  icon: Icons.wifi_rounded,
+                  semanticLabel:
+                      'This feature requires an internet connection. Point camera at a scene and press Describe Scene.',
+                ),
+
+                const SizedBox(height: kGapM),
+
+                // ── Primary action ────────────────────────────────────────────
+                NovaBigButton(
+                  label: 'Describe Scene',
+                  icon: Icons.image_search_rounded,
+                  enabled: !isBusy,
+                  loading: isBusy,
+                  semanticHint:
+                      'Takes a photo and sends it to the cloud for a spoken description. Requires internet.',
+                  onTap: () => context
+                      .read<SceneBloc>()
+                      .add(const RequestSceneDescription()),
+                ),
+
+                const SizedBox(height: kGapM),
+
+                // ── Content area ──────────────────────────────────────────────
+                Expanded(child: _buildContent(state)),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _content(BuildContext context, SceneState state) {
+  Widget _buildContent(SceneState state) {
     if (state is SceneLoading) {
-      return Semantics(
-        liveRegion: true,
-        // FR-03-06 exact wording
-        label: 'Describing the scene, please wait.',
-        child: const Center(child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 12),
-            Text('Describing the scene, please wait…'),
-          ],
-        )),
-      );
+      return const NovaLoadingState(
+          message: 'Describing the scene, please wait…');
     }
 
     if (state is SceneOfflineError) {
-      return Semantics(
-        liveRegion: true,
-        // FR-03-02 exact wording
-        label: 'Scene description requires an internet connection. Please try again when connected.',
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.wifi_off, size: 72, color: Colors.redAccent),
-              const SizedBox(height: 16),
-              Text(
-                'Scene description requires an internet connection.\nPlease try again when connected.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-            ],
-          ),
-        ),
+      return const NovaInfoState(
+        icon: Icons.wifi_off_rounded,
+        message: 'Scene description requires an internet connection.\nPlease try again when connected.',
+        iconColor: kNovaDanger,
+        semanticLabel:
+            'Scene description requires an internet connection. Please try again when connected.',
       );
     }
 
     if (state is SceneError) {
-      return Semantics(
-        liveRegion: true,
-        // FR-03-07 exact wording
-        label: 'Scene description is unavailable right now. Please try again later.',
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.cloud_off, size: 72, color: Colors.orangeAccent),
-              const SizedBox(height: 16),
-              Text(
-                'Scene description is unavailable right now.\nPlease try again later.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-            ],
-          ),
-        ),
+      return const NovaInfoState(
+        icon: Icons.cloud_off_rounded,
+        message: 'Scene description is unavailable right now.\nPlease try again later.',
+        iconColor: kNovaSecondary,
+        semanticLabel:
+            'Scene description is unavailable right now. Please try again later.',
       );
     }
 
@@ -178,11 +133,33 @@ class _SceneViewState extends State<_SceneView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Scene:', style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 8),
-              Text(
-                state.description,
-                style: Theme.of(context).textTheme.titleMedium,
+              const Text(
+                'SCENE DESCRIPTION',
+                style: TextStyle(
+                  color: kNovaPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.6,
+                ),
+              ),
+              const SizedBox(height: kGapS),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(kGapM),
+                decoration: BoxDecoration(
+                  color: kNovaCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                      color: kNovaPrimary.withValues(alpha: 0.25), width: 1.5),
+                ),
+                child: Text(
+                  state.description,
+                  style: const TextStyle(
+                    color: kNovaOnSurface,
+                    fontSize: 19,
+                    height: 1.65,
+                  ),
+                ),
               ),
             ],
           ),
@@ -191,22 +168,10 @@ class _SceneViewState extends State<_SceneView> {
     }
 
     // Idle
-    return Semantics(
-      label: 'Ready. Press the button or say describe scene.',
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.image_search_outlined, size: 80),
-            const SizedBox(height: 16),
-            Text(
-              'Press the button or say\n"describe scene".',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          ],
-        ),
-      ),
+    return const NovaInfoState(
+      icon: Icons.image_search_outlined,
+      message: 'Press "Describe Scene" or say\n"describe scene" to begin.',
+      semanticLabel: 'Ready. Press Describe Scene to begin.',
     );
   }
 }

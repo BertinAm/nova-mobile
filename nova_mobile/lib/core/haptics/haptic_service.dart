@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
 
 class HapticService {
@@ -12,6 +13,18 @@ class HapticService {
 
   Future<void> success() async {
     await _vibrate(duration: 80);
+  }
+
+  Future<void> vibrate() async {
+    await _vibrate(duration: 50);
+  }
+
+  Future<void> selectionClick() async {
+    await HapticFeedback.selectionClick();
+  }
+
+  Future<void> lightImpact() async {
+    await HapticFeedback.lightImpact();
   }
 
   Future<void> _vibrate({int? duration, List<int>? pattern}) async {

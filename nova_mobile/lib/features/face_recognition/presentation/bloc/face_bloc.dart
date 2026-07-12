@@ -99,16 +99,16 @@ class FaceBloc extends Bloc<FaceEvent, FaceState> {
 
   Future<void> _onEnroll(EnrollContact event, Emitter<FaceState> emit) async {
     emit(const FaceLoading());
-    await _tts.speak('Enrolling ${event.name}.', priority: TtsPriority.high);
+    await _tts.speak('Hold still, I\'m learning ${event.name}\'s face.', priority: TtsPriority.high);
     final photos = [await _camera.captureStill(), await _camera.captureStill(), await _camera.captureStill()];
     final result = await _enrollFace(event.name, photos);
     await result.fold(
       (failure) async {
         emit(FaceError(failure.message));
-        await _tts.speak('Face enrolment failed.', priority: TtsPriority.high);
+        await _tts.speak('Sorry, I couldn\'t enroll that face. Please try again.', priority: TtsPriority.high);
       },
       (contact) async {
-        await _tts.speak('${contact.name} enrolled.', priority: TtsPriority.high);
+        await _tts.speak('Got it! I\'ll remember ${contact.name} from now on.', priority: TtsPriority.high);
         await _db.insertUsageEvent(moduleId: ModuleIds.face, outcome: 'enrolled');
         add(const LoadContacts());
       },
@@ -117,7 +117,7 @@ class FaceBloc extends Bloc<FaceEvent, FaceState> {
 
   Future<void> _onRecognise(RecogniseFace event, Emitter<FaceState> emit) async {
     emit(const FaceLoading());
-    await _tts.speak('Looking for faces.', priority: TtsPriority.high);
+    await _tts.speak('Let me see who\'s there.', priority: TtsPriority.high);
     final image = await _camera.captureStill();
     final result = await _recogniseFace(image);
     final contactsResult = await _getContacts();
@@ -126,7 +126,7 @@ class FaceBloc extends Bloc<FaceEvent, FaceState> {
     await result.fold(
       (failure) async {
         emit(FaceError(failure.message));
-        await _tts.speak('Face recognition failed.', priority: TtsPriority.high);
+        await _tts.speak('Something went wrong. Please try again.', priority: TtsPriority.high);
         await _db.insertUsageEvent(moduleId: ModuleIds.face, outcome: 'error');
       },
       (face) async {
@@ -136,14 +136,14 @@ class FaceBloc extends Bloc<FaceEvent, FaceState> {
           return;
         }
         if (face.matched && face.contactName != null) {
-          await _tts.speak(face.contactName!, priority: TtsPriority.high);
+          await _tts.speak('That looks like ${face.contactName}!', priority: TtsPriority.high);
           await _db.insertUsageEvent(
             moduleId: ModuleIds.face,
             outcome: 'matched_${face.contactName}',
             confidenceScore: face.similarity,
           );
         } else {
-          await _tts.speak('Unknown person detected.', priority: TtsPriority.high);
+          await _tts.speak('I don\'t recognize this person.', priority: TtsPriority.high);
           await _db.insertUsageEvent(moduleId: ModuleIds.face, outcome: 'unknown');
         }
         emit(FaceReady(contacts: contacts, lastResult: face));
@@ -156,10 +156,10 @@ class FaceBloc extends Bloc<FaceEvent, FaceState> {
     await result.fold(
       (failure) async {
         emit(FaceError(failure.message));
-        await _tts.speak('Could not delete contact.', priority: TtsPriority.high);
+        await _tts.speak('I couldn\'t remove that contact. Please try again.', priority: TtsPriority.high);
       },
       (_) async {
-        await _tts.speak('Contact deleted.', priority: TtsPriority.high);
+        await _tts.speak('Done, contact removed.', priority: TtsPriority.high);
         add(const LoadContacts());
       },
     );

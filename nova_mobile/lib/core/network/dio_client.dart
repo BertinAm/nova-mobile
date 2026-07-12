@@ -71,6 +71,11 @@ class _JwtInterceptor extends QueuedInterceptor {
         data: {'refresh_token': refresh},
       );
       await _storage.write(key: 'access_token', value: res.data['access_token']);
+      // The refresh endpoint returns a new token pair — persist both.
+      final newRefresh = res.data['refresh_token'];
+      if (newRefresh != null && (newRefresh as String).isNotEmpty) {
+        await _storage.write(key: 'refresh_token', value: newRefresh);
+      }
       return true;
     } catch (e) {
       debugPrint('Token refresh failed: $e');

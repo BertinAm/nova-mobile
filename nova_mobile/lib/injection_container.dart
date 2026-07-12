@@ -13,6 +13,13 @@ import 'core/settings/settings_service.dart';
 import 'core/sync/sync_service.dart';
 import 'core/tts/tts_service.dart';
 import 'core/voice/voice_command_service.dart';
+import 'features/auth/data/datasources/auth_remote_datasource.dart';
+import 'features/auth/domain/repositories/auth_repository.dart';
+import 'features/auth/presentation/bloc/auth_bloc.dart';
+import 'features/emergency_contact/data/datasources/emergency_contact_datasource.dart';
+import 'features/emergency_contact/domain/repositories/emergency_contact_repository.dart';
+import 'features/emergency_contact/presentation/bloc/emergency_contact_bloc.dart';
+import 'features/home/presentation/bloc/home_bloc.dart';
 import 'features/currency_detection/data/datasources/tflite_currency_datasource.dart';
 import 'features/currency_detection/data/repositories/currency_repository_impl.dart';
 import 'features/currency_detection/domain/repositories/currency_repository.dart';
@@ -70,6 +77,18 @@ Future<void> configureDependencies() async {
 
   getIt.registerLazySingleton(() => SyncService(getIt(), getIt(), getIt()));
   getIt.registerLazySingleton(() => ModelUpdateService(getIt(), getIt(), getIt()));
+
+  getIt.registerFactory(() => HomeBloc(getIt(), getIt(), getIt(), getIt()));
+
+  // Auth feature
+  getIt.registerLazySingleton(() => AuthRemoteDatasource(getIt<DioClient>().client, getIt()));
+  getIt.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(getIt()));
+  getIt.registerFactory(() => AuthBloc(getIt()));
+
+  // Emergency Contact feature
+  getIt.registerLazySingleton(() => EmergencyContactDatasource(getIt<DioClient>().client));
+  getIt.registerLazySingleton<EmergencyContactRepository>(() => EmergencyContactRepositoryImpl(getIt()));
+  getIt.registerFactory(() => EmergencyContactBloc(getIt()));
 
   // MOD-01 obstacle detection.
   final obstacleDs = TfliteObstacleDatasource();

@@ -99,7 +99,7 @@ class ObstacleBloc extends Bloc<ObstacleEvent, ObstacleState> {
   ) async {
     await _detectionSubscription?.cancel();
     await _camera.initialize();
-    await _tts.speak('Obstacle detection started.', priority: TtsPriority.high);
+    await _tts.speak('Scanning for obstacles. Walk carefully.', priority: TtsPriority.high);
 
     _detectionSubscription = _detectUseCase(_camera.frames()).listen(
       (result) => result.fold(
@@ -149,7 +149,7 @@ class ObstacleBloc extends Bloc<ObstacleEvent, ObstacleState> {
     Emitter<ObstacleState> emit,
   ) async {
     await _tts.speak(
-      'Obstacle detection error. Please restart the module.',
+      'Something went wrong with obstacle detection. Try going back and starting again.',
       priority: TtsPriority.high,
     );
     emit(ObstacleError(event.failure.message));
@@ -162,7 +162,7 @@ class ObstacleBloc extends Bloc<ObstacleEvent, ObstacleState> {
     await _detectionSubscription?.cancel();
     _suppression.clear();
     await _db.insertUsageEvent(moduleId: ModuleIds.obstacle, outcome: 'stopped');
-    await _tts.speak('Obstacle detection stopped.', priority: TtsPriority.normal);
+    await _tts.speak('Scanning paused.', priority: TtsPriority.normal);
     emit(const ObstacleIdle());
   }
 

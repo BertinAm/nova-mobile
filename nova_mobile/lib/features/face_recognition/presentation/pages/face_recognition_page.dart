@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/design/nova_design_system.dart';
 import '../../../../injection_container.dart';
 import '../../../../main.dart' show globalStopCurrentOption;
 import '../bloc/face_bloc.dart';
@@ -30,12 +31,10 @@ class _FaceViewState extends State<_FaceView> {
   @override
   void initState() {
     super.initState();
-    globalStopCurrentOption = null; // face has no continuous loop
+    globalStopCurrentOption = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final autoStart = ModalRoute.of(context)?.settings.arguments == true;
-      if (autoStart) {
-        context.read<FaceBloc>().add(const RecogniseFace());
-      }
+      if (autoStart) context.read<FaceBloc>().add(const RecogniseFace());
     });
   }
 
@@ -48,189 +47,173 @@ class _FaceViewState extends State<_FaceView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Option 5 — Recognize Faces')),
-      body: SafeArea(
-        child: BlocBuilder<FaceBloc, FaceState>(
-          builder: (context, state) {
-            final contacts = state is FaceReady ? state.contacts : const [];
+    return BlocBuilder<FaceBloc, FaceState>(
+      builder: (context, state) {
+        final contacts  = state is FaceReady ? state.contacts : const [];
+        final isLoading = state is FaceLoading;
+        final hasError  = state is FaceError;
+        final hasResult = state is FaceReady && state.lastResult != null;
 
-            return CustomScrollView(
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.all(20),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      // ─── Recognise button ─────────────────────────────────
-                      Semantics(
-                        button: true,
-                        label: 'Who is this? Recognize a face',
-                        hint: 'Points the camera at a person and announces their name if enrolled',
-                        child: ElevatedButton.icon(
-                          onPressed: () => context.read<FaceBloc>().add(const RecogniseFace()),
-                          icon: const Icon(Icons.face, size: 28),
-                          label: const Text('Who is this?'),
+        return NovaScaffold(
+          featureNumber: 5,
+          title: 'Recognize Faces',
+          icon: Icons.face_rounded,
+          semanticPageLabel: 'Recognize Faces page.',
+          body: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.all(kPagePad),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    const SizedBox(height: kGapM),
+                    NovaBigButton(
+                      label: 'Who is this?',
+                      icon: Icons.face_rounded,
+                      loading: isLoading,
+                      semanticHint: 'Points the camera at a person and speaks their name if enrolled',
+                      onTap: () => context.read<FaceBloc>().add(const RecogniseFace()),
+                    ),
+                    const SizedBox(height: kGapM),
+                    if (hasError)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: kGapM),
+                        child: NovaResultCard(
+                          icon: Icons.error_outline_rounded,
+                          headline: (state as FaceError).message,
+                          color: kNovaDanger,
                         ),
                       ),
-
-                      const SizedBox(height: 12),
-
-                      // ─── Result / Loading / Error ─────────────────────────
-                      if (state is FaceLoading)
-                        Semantics(
-                          liveRegion: true,
-                          label: 'Processing, please wait.',
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            child: LinearProgressIndicator(),
-                          ),
-                        ),
-
-                      if (state is FaceError)
-                        Semantics(
-                          liveRegion: true,
-                          label: 'Error: ${state.message}',
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Text(
-                              state.message,
-                              style: const TextStyle(color: Colors.redAccent),
-                            ),
-                          ),
-                        ),
-
-                      if (state is FaceReady && state.lastResult != null) ...[
-                        const SizedBox(height: 8),
-                        _ResultCard(
-                          resultText: _resultText(state),
-                          isMatch: state.lastResult!.matched,
-                          faceDetected: state.lastResult!.faceDetected,
-                        ),
-                      ],
-
-                      const SizedBox(height: 24),
-                      const Divider(),
-
-                      // ─── Enrolment section ────────────────────────────────
-                      Semantics(
-                        header: true,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 12, top: 8),
-                          child: Text(
-                            'Enrol a Contact',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        'A caregiver can enrol known contacts here. '
-                        'The blind user can then say "who is this?" to recognise them later.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      Semantics(
-                        label: 'Contact name for enrolment text field',
-                        hint: 'Type the name of the person you want to enrol',
+                    if (hasResult) ...[
+                      _FaceResultCard(state: state as FaceReady),
+                      const SizedBox(height: kGapM),
+                    ],
+                    const NovaDivider(),
+                    const NovaSectionHeader('Enrol a Contact'),
+                    const NovaInstructionCard(
+                      message: 'A caregiver can enrol known contacts here. The blind user can then say "who is this?" to recognise them later.',
+                      icon: Icons.person_add_rounded,
+                    ),
+                    const SizedBox(height: kGapM),
+                    MergeSemantics(
+                      child: Semantics(
+                        label: 'Contact name for enrolment',
+                        hint: 'Type the name of the person to enrol',
                         textField: true,
                         child: TextField(
                           controller: _nameController,
                           textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
+                          style: const TextStyle(color: kNovaOnSurface, fontSize: 18),
+                          decoration: InputDecoration(
                             labelText: 'Contact name',
                             hintText: 'e.g. Mama, Doctor Mbarga…',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.person_outline),
+                            labelStyle: const TextStyle(color: kNovaPrimary),
+                            hintStyle: TextStyle(color: kNovaSubtext.withValues(alpha: 0.6)),
+                            prefixIcon: const Icon(Icons.person_outline, color: kNovaPrimary),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: kNovaPrimary.withValues(alpha: 0.4), width: 1.5),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: const BorderSide(color: kNovaPrimary, width: 2),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            filled: true,
+                            fillColor: kNovaCard,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Semantics(
-                        button: true,
-                        label: 'Enrol contact',
-                        hint: 'Captures face photos and saves this contact for recognition',
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            final name = _nameController.text.trim();
-                            if (name.isNotEmpty) {
-                              context.read<FaceBloc>().add(EnrollContact(name));
-                              _nameController.clear();
-                            }
-                          },
-                          icon: const Icon(Icons.person_add),
-                          label: const Text('Enrol contact'),
-                        ),
+                    ),
+                    const SizedBox(height: kGapS),
+                    NovaOutlineButton(
+                      label: 'Enrol Contact',
+                      icon: Icons.person_add_rounded,
+                      semanticHint: 'Captures face photos and saves this contact',
+                      onTap: () {
+                        final name = _nameController.text.trim();
+                        if (name.isNotEmpty) {
+                          context.read<FaceBloc>().add(EnrollContact(name));
+                          _nameController.clear();
+                        }
+                      },
+                    ),
+                    const NovaDivider(),
+                    NovaSectionHeader('Enrolled Contacts (${contacts.length})'),
+                    if (contacts.isEmpty)
+                      const NovaInfoState(
+                        icon: Icons.people_outline_rounded,
+                        message: 'No contacts enrolled yet.\nUse the form above to enrol someone.',
+                        semanticLabel: 'No contacts enrolled.',
                       ),
-
-                      const SizedBox(height: 24),
-                      const Divider(),
-
-                      // ─── Enrolled contacts list ───────────────────────────
-                      Semantics(
-                        header: true,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 8, bottom: 4),
-                          child: Text(
-                            'Enrolled Contacts (${contacts.length})',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                        ),
-                      ),
-
-                      if (contacts.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          child: Text(
-                            'No contacts enrolled yet. Enrol a contact above.',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
-                    ]),
-                  ),
+                  ]),
                 ),
-
-                // Contacts in sliver
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final contact = contacts[index];
-                        return Semantics(
-                          label: '${contact.name}, enrolled ${contact.createdAt.toLocal().toString().split(' ').first}',
-                          child: Card(
-                            child: ListTile(
-                              leading: CircleAvatar(
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(kPagePad, 0, kPagePad, kPagePad),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) {
+                      final contact = contacts[i];
+                      final dateStr = contact.createdAt.toLocal().toString().split(' ').first;
+                      return Semantics(
+                        label: '${contact.name}, enrolled $dateStr',
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.all(kGapS),
+                          decoration: BoxDecoration(
+                            color: kNovaCard,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: kNovaPrimary.withValues(alpha: 0.2), width: 1),
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 26,
+                                backgroundColor: kNovaPrimary.withValues(alpha: 0.2),
                                 child: Text(
                                   contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?',
+                                  style: const TextStyle(color: kNovaPrimary, fontSize: 20, fontWeight: FontWeight.bold),
                                 ),
                               ),
-                              title: Text(contact.name,
-                                  style: Theme.of(context).textTheme.titleMedium),
-                              subtitle: Text(
-                                'Enrolled ${contact.createdAt.toLocal().toString().split(' ').first}',
-                              ),
-                              trailing: Semantics(
-                                button: true,
-                                label: 'Delete ${contact.name}',
-                                child: IconButton(
-                                  tooltip: 'Delete ${contact.name}',
-                                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                                  onPressed: () => _confirmDelete(context, contact),
+                              const SizedBox(width: kGapS),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(contact.name, style: const TextStyle(color: kNovaOnSurface, fontSize: 18, fontWeight: FontWeight.w600)),
+                                    Text('Enrolled $dateStr', style: const TextStyle(color: kNovaSubtext, fontSize: 13)),
+                                  ],
                                 ),
                               ),
-                            ),
+                              MergeSemantics(
+                                child: Semantics(
+                                  button: true,
+                                  label: 'Delete ${contact.name}',
+                                  child: GestureDetector(
+                                    onTap: () => _confirmDelete(context, contact),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: kNovaDanger.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(Icons.delete_outline_rounded, color: kNovaDanger, size: 22),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        );
-                      },
-                      childCount: contacts.length,
-                    ),
+                        ),
+                      );
+                    },
+                    childCount: contacts.length,
                   ),
                 ),
-              ],
-            );
-          },
-        ),
-      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -238,20 +221,24 @@ class _FaceViewState extends State<_FaceView> {
     showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete contact?'),
-        content: Text(
-          'Delete ${contact.name} and their face data? This cannot be undone.',
-        ),
+        backgroundColor: kNovaCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Delete contact?', style: TextStyle(color: kNovaOnSurface, fontWeight: FontWeight.bold)),
+        content: Text('Delete ${contact.name} and their face data? This cannot be undone.', style: const TextStyle(color: kNovaSubtext)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: const Text('Cancel', style: TextStyle(color: kNovaPrimary)),
           ),
           Semantics(
             button: true,
             label: 'Confirm delete ${contact.name}',
-            child: FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kNovaDanger,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
               onPressed: () {
                 Navigator.pop(ctx, true);
                 context.read<FaceBloc>().add(DeleteContact(contact.id));
@@ -263,56 +250,31 @@ class _FaceViewState extends State<_FaceView> {
       ),
     );
   }
-
-  String _resultText(FaceReady state) {
-    final result = state.lastResult!;
-    // FR-05-06 exact logic
-    if (!result.faceDetected) return ''; // silent — no face in frame
-    if (result.matched) {
-      final pct = ((result.similarity ?? 0) * 100).toStringAsFixed(0);
-      return 'Recognised ${result.contactName} ($pct%)';
-    }
-    return 'Unknown person detected.'; // FR-05-06 exact wording
-  }
 }
 
-class _ResultCard extends StatelessWidget {
-  const _ResultCard({
-    required this.resultText,
-    required this.isMatch,
-    required this.faceDetected,
-  });
-
-  final String resultText;
-  final bool isMatch;
-  final bool faceDetected;
+class _FaceResultCard extends StatelessWidget {
+  const _FaceResultCard({required this.state});
+  final FaceReady state;
 
   @override
   Widget build(BuildContext context) {
-    if (!faceDetected || resultText.isEmpty) return const SizedBox.shrink();
-
-    final color = isMatch ? Colors.greenAccent : Colors.orangeAccent;
-    final icon = isMatch ? Icons.check_circle : Icons.help_outline;
-
-    return Semantics(
-      liveRegion: true,
-      label: resultText,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          border: Border.all(color: color, width: 2),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 36),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(resultText, style: Theme.of(context).textTheme.titleMedium),
-            ),
-          ],
-        ),
-      ),
+    final result = state.lastResult!;
+    if (!result.faceDetected) return const SizedBox.shrink();
+    if (result.matched) {
+      final pct = ((result.similarity ?? 0) * 100).toStringAsFixed(0);
+      return NovaResultCard(
+        icon: Icons.check_circle_rounded,
+        headline: 'Recognised: ${result.contactName}',
+        subline: 'Similarity $pct%',
+        color: kNovaSuccess,
+        semanticLabel: 'Recognised ${result.contactName}. Similarity $pct percent.',
+      );
+    }
+    return const NovaResultCard(
+      icon: Icons.help_outline_rounded,
+      headline: 'Unknown person detected.',
+      color: kNovaSecondary,
+      semanticLabel: 'Unknown person detected.',
     );
   }
 }
